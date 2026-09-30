@@ -29,8 +29,8 @@ SmartPantry AI is a capstone project designed to help users manage household foo
 5. 💾 Commit your changes with a descriptive commit message.
 6. ⬆️ Push your branch to GitHub.
 7. 🔀 Open a Pull Request into `main`.
-8. 👀 Have another team member review the Pull Request.
-9. ✅ Merge only after the Pull Request has been reviewed.
+8. 👀 Review the Pull Request and confirm the changes are ready to merge.
+9. ✅ Merge the Pull Request into `main`..
 
 > ### ⚠️ Why This Matters
 >
