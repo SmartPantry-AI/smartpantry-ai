@@ -4,7 +4,7 @@
 
 SmartPantry AI is a capstone project designed to help users manage household food more effectively. The system will combine pantry inventory tracking, expiration and storage monitoring, food recall information, and AI-assisted recipe recommendations in one application.
 
-> **Project Status:** Phase 1 — Planning, Research, and Initial Development
+>**Project Status:** Phase 3 — AI Model Architecture, Integration, Evaluation, and Refinement (Weeks 7–10)
 
 ---
 
