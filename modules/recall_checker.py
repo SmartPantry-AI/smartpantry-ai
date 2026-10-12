@@ -1,5 +1,7 @@
-product_name,brand,upc,source,reason
-Chicken Alfredo,ABC Foods,123456789,FDA,Listeria contamination
-Frozen Pizza,XYZ Foods,987654321,FDA,Undeclared allergen
-Turkey Sandwich,Fresh Foods,111222333,USDA,Salmonella contamination# SmartPantry AI
-# Food recall checking module
+import pandas as pd
+
+# Load recall dataset
+recalls = pd.read_csv("data/sample_recalls.csv")
+
+print("Recall Records Loaded:")
+print(recalls)
