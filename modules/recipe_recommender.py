@@ -24,26 +24,29 @@ if use_live_api:
         params=params
     )
 
-print("Status code:", response.status_code)
+    print("Status code:", response.status_code)
 
-recipe_data = response.json()
+    recipe_data = response.json()
+    if response.status_code != 200:
+        print("Spoonacular API error:", recipe_data)
+        recipe_data = []
 
-print(recipe_data)
+    print(recipe_data)
 
-print(type(recipe_data))
-print("Number of recipes returned:", len(recipe_data))
+    print(type(recipe_data))
+    print("Number of recipes returned:", len(recipe_data))
 
-for recipe in recipe_data:
-    print(recipe["title"])
-    print("Used pantry ingredients:", recipe["usedIngredientCount"])
+    for recipe in recipe_data:
+        print(recipe["title"])
+        print("Used pantry ingredients:", recipe["usedIngredientCount"])
 
-    for ingredient in recipe["usedIngredients"]:
-        print(ingredient["name"])
+        for ingredient in recipe["usedIngredients"]:
+            print(ingredient["name"])
 
-    print("Missing ingredients:", recipe["missedIngredientCount"])
+        print("Missing ingredients:", recipe["missedIngredientCount"])
 
-    for missing_ingredient in recipe["missedIngredients"]:
-        print(missing_ingredient["name"])
+        for missing_ingredient in recipe["missedIngredients"]:
+            print(missing_ingredient["name"])
 
 ingredient_name = " Baby Spinach "
 print(ingredient_name.strip())
@@ -175,20 +178,7 @@ def calculate_recipe_expiration_score(recipe, pantry):
                 ingredient
             )
 
-            print(
-                "MATCH RESULT:",
-                repr(item["name"]),
-                repr(ingredient),
-                match_result
-            )
-
             if match_result:
-                print(
-                    "EXPIRATION MATCH FOUND:",
-                    item["name"],
-                    ingredient
-                )
-
                 expiration_score = expiration_score + get_expiration_points(
                     item["days_until_expiration"]
                 )
@@ -353,22 +343,6 @@ for recipe in recipes:
     print("Expiration score:", expiration_score)
     print("Expiration coverage:", expiration_coverage, "%")
     print("Final recipe score:", final_score)
-
-test_recipe = {
-    "name": "Expiration Test",
-    "ingredients": ["baby spianch", "brown rice"]
-}
-print(
-    "SPINACH MATCH:",
-    ingredients_match("spinach", "baby spinach")
-)
-print(
-    "EXPIRATION TEST RESULT",
-    calculate_recipe_expiration_score(
-        test_recipe,
-        pantry
-    )
-)
 
 print("\nSMARTPANTRY RECOMMENDATIONS")
 
