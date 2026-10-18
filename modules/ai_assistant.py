@@ -10,3 +10,11 @@ if not api_key:
     raise ValueError("OPENAI_API_KEY is missing. Check your .env file.")
 
 client = OpenAI(api_key=api_key)
+
+def ask_ai(question):
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        input=question
+    )
+
+    return response.output_text
