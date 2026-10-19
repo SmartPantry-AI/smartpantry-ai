@@ -100,3 +100,29 @@ Verify that Mochi's system instructions contain its identity and essential Smart
 
 ### Conclusion
 Mochi's instruction configuration passed the automated checks. Further testing is required to verify actual AI behavior, food safety responses, and integration with SmartPantry modules.
+
+## Test 4: Mochi First Live API Conversation
+
+**Component:** `modules/ai_assistant.py`  
+**Test type:** Manual live API integration test  
+**Date:** October 18, 2026  
+**Status:** PASSED
+
+### Objective
+Verify that Mochi can successfully connect to OpenAI, introduce itself, and describe its SmartPantry responsibilities.
+
+### Test Input
+"Hi Mochi! Introduce yourself in two sentences and tell me how you help with food storage and recalls."
+
+### Observed Results
+- Successfully connected to the OpenAI API.
+- Introduced itself as Mochi.
+- Responded in a friendly, playful tone.
+- Mentioned food storage and recall assistance.
+- Did not claim to have checked a specific product or recall.
+
+### Observations
+Mochi described recall alerts as a capability. The recall-checking module has not yet been integrated with Mochi, so this functionality remains to be implemented and tested.
+
+### Conclusion
+The first live API conversation succeeded. Mochi's basic identity, communication style, and OpenAI connectivity were verified. Further testing is needed for actual pantry data, verified recalls, and integration with other SmartPantry modules.

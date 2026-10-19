@@ -90,6 +90,7 @@ def ask_ai(question):
 
         return response.output_text
 
-    except Exception:
+    except Exception as e:
+        print(f"OpenAI API error: {type(e)._name_}")
         return "Sorry, Mochi is temporarily unavailable."
 
