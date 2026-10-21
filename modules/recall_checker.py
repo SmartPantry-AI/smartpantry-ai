@@ -43,5 +43,17 @@ def check_recall(product_name, recalls_df):
 
 
 if __name__ == "__main__":
-        print("Testing Recall Checker...")
+    print("Testing Recall Checker...")
+
+    test_data = pd.DataFrame([
+        {
+            "product_description": "Milk Chocolate Rice Cakes"
+        },
+        {
+            "product_description": "Frozen Pizza"
+        }
+    ])
+
+    print("Milk:", check_recall("milk", test_data))
+    print("Banana:", check_recall("banana", test_data))
 
