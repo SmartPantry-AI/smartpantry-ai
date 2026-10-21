@@ -40,3 +40,8 @@ def check_recall(product_name, recalls_df):
         return "RECALLED"
 
     return "CLEAR"
+
+
+if __name__ == "__main__":
+        print("Testing Recall Checker...")
+
