@@ -1,7 +1,42 @@
 import pandas as pd
+import requests
 
-# Load recall dataset
-recalls = pd.read_csv("data/sample_recalls.csv")
 
-print("Recall Records Loaded:")
-print(recalls)
+def get_fda_recalls(api_key, search_term="milk", limit=5):
+    """
+    Pull recall records from openFDA.
+    """
+
+    url = "https://api.fda.gov/food/enforcement.json"
+
+    params = {
+        "api_key": api_key,
+        "search": f"product_description:{search_term}",
+        "limit": limit,
+    }
+
+    response = requests.get(url, params=params)
+
+    if response.status_code == 200:
+        results = response.json().get("results", [])
+        return pd.json_normalize(results)
+
+    return pd.DataFrame()
+
+
+def check_recall(product_name, recalls_df):
+    """
+    Returns:
+        RECALLED
+        CLEAR
+    """
+
+    matches = recalls_df[
+        recalls_df["product_description"]
+        .str.contains(product_name, case=False, na=False)
+    ]
+
+    if len(matches) > 0:
+        return "RECALLED"
+
+    return "CLEAR"
