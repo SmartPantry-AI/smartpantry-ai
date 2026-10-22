@@ -21,19 +21,36 @@ def get_fda_recalls(api_key, search_term="milk", limit=5):
     return pd.DataFrame()
 
 
-def check_recall(product_name, recalls_df):
+def check_recall(product_name, recalls_df, brand=None):
 
     product_name = product_name.lower().strip()
 
     # Exact match
     for description in recalls_df["product_description"].fillna(""):
+
         description = description.lower()
 
         if description == product_name:
             return "RECALLED"
 
-    # Partial match
+    # Brand + Product Match
+    if brand:
+
+        brand = brand.lower().strip()
+
+        for description in recalls_df["product_description"].fillna(""):
+
+            description = description.lower()
+
+            if (
+                brand in description
+                and product_name in description
+            ):
+                return "POSSIBLE_MATCH"
+
+    # Product-only partial match
     for description in recalls_df["product_description"].fillna(""):
+
         description = description.lower()
 
         if product_name in description:
@@ -54,7 +71,27 @@ if __name__ == "__main__":
 
     print("Records Found:", len(recalls))
 
-    print("Milk:", check_recall("milk", recalls))
-    print("Chocolate:", check_recall("chocolate", recalls))
-    print("Banana:", check_recall("banana", recalls))
-    print("Laptop:", check_recall("laptop", recalls))
+   print(
+    "Elite Chocolate:",
+    check_recall(
+        "chocolate",
+        recalls,
+        brand="elite"
+    )
+)
+
+print(
+    "Milk:",
+    check_recall(
+        "milk",
+        recalls
+    )
+)
+
+print(
+    "Banana:",
+    check_recall(
+        "banana",
+        recalls
+    )
+)
