@@ -3,9 +3,6 @@ import requests
 
 
 def get_fda_recalls(api_key, search_term="milk", limit=5):
-    """
-    Pull recall records from openFDA.
-    """
 
     url = "https://api.fda.gov/food/enforcement.json"
 
@@ -25,19 +22,22 @@ def get_fda_recalls(api_key, search_term="milk", limit=5):
 
 
 def check_recall(product_name, recalls_df):
-    """
-    Returns:
-        RECALLED
-        CLEAR
-    """
 
-    matches = recalls_df[
-        recalls_df["product_description"]
-        .str.contains(product_name, case=False, na=False)
-    ]
+    product_name = product_name.lower().strip()
 
-    if len(matches) > 0:
-        return "RECALLED"
+    # Exact match
+    for description in recalls_df["product_description"].fillna(""):
+        description = description.lower()
+
+        if description == product_name:
+            return "RECALLED"
+
+    # Partial match
+    for description in recalls_df["product_description"].fillna(""):
+        description = description.lower()
+
+        if product_name in description:
+            return "POSSIBLE_MATCH"
 
     return "CLEAR"
 
@@ -55,5 +55,6 @@ if __name__ == "__main__":
     print("Records Found:", len(recalls))
 
     print("Milk:", check_recall("milk", recalls))
+    print("Chocolate:", check_recall("chocolate", recalls))
     print("Banana:", check_recall("banana", recalls))
-
+    print("Laptop:", check_recall("laptop", recalls))
