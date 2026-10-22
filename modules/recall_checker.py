@@ -43,17 +43,17 @@ def check_recall(product_name, recalls_df):
 
 
 if __name__ == "__main__":
-    print("Testing Recall Checker...")
 
-    test_data = pd.DataFrame([
-        {
-            "product_description": "Milk Chocolate Rice Cakes"
-        },
-        {
-            "product_description": "Frozen Pizza"
-        }
-    ])
+    API_KEY = input("Enter FDA API Key: ")
 
-    print("Milk:", check_recall("milk", test_data))
-    print("Banana:", check_recall("banana", test_data))
+    recalls = get_fda_recalls(
+        API_KEY,
+        search_term="milk",
+        limit=20
+    )
+
+    print("Records Found:", len(recalls))
+
+    print("Milk:", check_recall("milk", recalls))
+    print("Banana:", check_recall("banana", recalls))
 
