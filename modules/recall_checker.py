@@ -3,6 +3,9 @@ import requests
 
 
 def get_fda_recalls(api_key, search_term="milk", limit=5):
+    """
+    Pull recall records from openFDA.
+    """
 
     url = "https://api.fda.gov/food/enforcement.json"
 
@@ -22,10 +25,16 @@ def get_fda_recalls(api_key, search_term="milk", limit=5):
 
 
 def check_recall(product_name, recalls_df, brand=None):
+    """
+    Returns:
+        RECALLED
+        POSSIBLE_MATCH
+        CLEAR
+    """
 
     product_name = product_name.lower().strip()
 
-    # Exact match
+    # Exact Match
     for description in recalls_df["product_description"].fillna(""):
 
         description = description.lower()
@@ -48,7 +57,7 @@ def check_recall(product_name, recalls_df, brand=None):
             ):
                 return "POSSIBLE_MATCH"
 
-    # Product-only partial match
+    # Product-Only Match
     for description in recalls_df["product_description"].fillna(""):
 
         description = description.lower()
@@ -71,27 +80,35 @@ if __name__ == "__main__":
 
     print("Records Found:", len(recalls))
 
-   print(
-    "Elite Chocolate:",
-    check_recall(
-        "chocolate",
-        recalls,
-        brand="elite"
+    print(
+        "Elite Chocolate:",
+        check_recall(
+            "chocolate",
+            recalls,
+            brand="elite"
+        )
     )
-)
 
-print(
-    "Milk:",
-    check_recall(
-        "milk",
-        recalls
+    print(
+        "Milk:",
+        check_recall(
+            "milk",
+            recalls
+        )
     )
-)
 
-print(
-    "Banana:",
-    check_recall(
-        "banana",
-        recalls
+    print(
+        "Banana:",
+        check_recall(
+            "banana",
+            recalls
+        )
     )
-)
+
+    print(
+        "Laptop:",
+        check_recall(
+            "laptop",
+            recalls
+        )
+    )
