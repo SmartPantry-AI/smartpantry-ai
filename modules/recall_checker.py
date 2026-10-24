@@ -23,6 +23,29 @@ def get_fda_recalls(api_key, search_term="milk", limit=5):
 
     return pd.DataFrame()
 
+"""
+Match Priority:
+
+1. UPC Match
+   -> RECALLED
+
+2. Exact Product Match
+   -> RECALLED
+
+3. Brand + Product Match
+   -> POSSIBLE_MATCH
+
+4. Product-Only Match
+   -> POSSIBLE_MATCH
+
+5. No Match
+   -> CLEAR
+
+Purpose:
+Acts as the SmartPantry recall safety gate before
+items are allowed to continue to recipe recommendation.
+"""
+
 
 def check_recall(product_name, recalls_df, brand=None, upc=None):
     """
