@@ -24,23 +24,40 @@ def get_fda_recalls(api_key, search_term="milk", limit=5):
     return pd.DataFrame()
 
 
-def check_recall(product_name, recalls_df, brand=None):
+def check_recall(product_name, recalls_df, brand=None, upc=None):
     """
-    Returns:
-        RECALLED
-        POSSIBLE_MATCH
-        CLEAR
+    Returns a structured recall result.
     """
 
     product_name = product_name.lower().strip()
 
-    # Exact Match
+    # UPC Match (Highest Confidence)
+    if upc:
+
+        for _, row in recalls_df.iterrows():
+
+            recall_upc = str(row.get("upc", "")).strip()
+
+            if recall_upc and recall_upc == str(upc):
+
+                return {
+                    "status": "RECALLED",
+                    "source": "FDA",
+                    "matched_product": row["product_description"]
+                }
+
+    # Exact Product Match
     for description in recalls_df["product_description"].fillna(""):
 
         description = description.lower()
 
         if description == product_name:
-            return "RECALLED"
+
+            return {
+                "status": "RECALLED",
+                "source": "FDA",
+                "matched_product": description
+            }
 
     # Brand + Product Match
     if brand:
@@ -55,7 +72,11 @@ def check_recall(product_name, recalls_df, brand=None):
                 brand in description
                 and product_name in description
             ):
-                return "POSSIBLE_MATCH"
+                return {
+                    "status": "POSSIBLE_MATCH",
+                    "source": "FDA",
+                    "matched_product": description
+                }
 
     # Product-Only Match
     for description in recalls_df["product_description"].fillna(""):
@@ -63,9 +84,18 @@ def check_recall(product_name, recalls_df, brand=None):
         description = description.lower()
 
         if product_name in description:
-            return "POSSIBLE_MATCH"
 
-    return "CLEAR"
+            return {
+                "status": "POSSIBLE_MATCH",
+                "source": "FDA",
+                "matched_product": description
+            }
+
+    return {
+        "status": "CLEAR",
+        "source": None,
+        "matched_product": None
+    }
 
 
 if __name__ == "__main__":
@@ -81,7 +111,6 @@ if __name__ == "__main__":
     print("Records Found:", len(recalls))
 
     print(
-        "Elite Chocolate:",
         check_recall(
             "chocolate",
             recalls,
@@ -90,25 +119,8 @@ if __name__ == "__main__":
     )
 
     print(
-        "Milk:",
-        check_recall(
-            "milk",
-            recalls
-        )
-    )
-
-    print(
-        "Banana:",
         check_recall(
             "banana",
-            recalls
-        )
-    )
-
-    print(
-        "Laptop:",
-        check_recall(
-            "laptop",
             recalls
         )
     )
