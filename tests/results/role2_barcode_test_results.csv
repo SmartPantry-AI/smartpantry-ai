@@ -1,0 +1,14 @@
+test_id,product,image_file,expected_outcome,barcode,barcode_type,decode_status,lookup_status,missing_fields,error,test_status
+R2-INT-001,Barilla Protein+ Penne,protein_pasta_barcode.jpg,SUCCESS,076808533606,UPC_A,PASS,PASS,None,None,PASS
+R2-INT-002,H-E-B Rolled Oats,HEB_RolledOats_Barcode.jpg,SUCCESS,041220892617,UPC_A,PASS,PASS,quantity,None,PASS
+R2-INT-003,Hill Country Fare Honey Wheat,HoneyWheat_Bread_Barcode.jpg,SUCCESS,041220053667,UPC_A,PASS,PASS,source_category,None,PASS
+R2-INT-004,Bread without barcode,bread_no_barcode.jpg,NO_BARCODE,,,EXPECTED_FAILURE,NOT_TESTED,None,No barcode detected.,PASS
+R2-INT-005,Nonexistent image,nonexistent_barcode.jpg,INVALID_IMAGE,,,EXPECTED_FAILURE,NOT_TESTED,None,Image could not be loaded.,PASS
+R2-INT-006,Unknown product,mock_image.jpg,PRODUCT_NOT_FOUND,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Product not found. Manual entry required.,PASS
+R2-INT-007,API connection failure,mock_image.jpg,API_CONNECTION_FAILURE,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts request failed: Simulated connection failure,PASS
+R2-INT-008,API HTTP 503 error,mock_image.jpg,API_HTTP_ERROR,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts request failed: 503 Server Error: Service Unavailable,PASS
+R2-INT-009,Malformed API JSON,mock_image.jpg,INVALID_JSON,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts returned an invalid JSON response.,PASS
+R2-INT-010,API timeout,mock_image.jpg,API_TIMEOUT,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts request failed: Simulated API timeout,PASS
+R2-INT-011,Invalid product structure,mock_image.jpg,INVALID_PRODUCT_STRUCTURE,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts returned an invalid product structure.,PASS
+R2-INT-012,Invalid API response structure,mock_image.jpg,INVALID_RESPONSE_STRUCTURE,000000000000,UPC_A,MOCKED_SUCCESS,EXPECTED_FAILURE,None,Open Food Facts returned an invalid response structure.,PASS
+

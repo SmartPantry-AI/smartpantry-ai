@@ -3,3 +3,4 @@ requests
 python-dotenv
 openai
 pytest
+opencv-contrib-python==5.0.0.93

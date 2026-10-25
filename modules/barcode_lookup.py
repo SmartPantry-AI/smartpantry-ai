@@ -69,12 +69,23 @@ def identify_product(image_path):
 
     except requests.RequestException as error:
         return None, f"Open Food Facts request failed: {error}"
+    except ValueError:
+        return None, "Open Food Facts returned an invalid JSON response."
+                                                                     
+
+    # Validate the overall API response structure
+    if not isinstance(data, dict):
+        return None, "Open Food Facts returned an invalid response structure."
 
     # Step 3: Check whether Open Food Facts found the product
     if "product" not in data:
         return None, "Product not found. Manual entry required."
 
     product = data["product"]
+
+    if not isinstance(product, dict):
+       return None, "Open Food Facts returned an invalid product structure."
+
 
     # Step 4: Create the standardized SmartPantry record
     pantry_record = {
