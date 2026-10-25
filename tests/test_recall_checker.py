@@ -642,5 +642,119 @@ def test_recall_matching_upc():
 
     assert result["status"] == "POSSIBLE_MATCH"
 
+
+def test_recall_matching_brand_and_product_name():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Honey Wheat Bread",
+        "brand": "Hill Country Fare",
+        "upc": None,
+    }
+
+    recall = {
+        "product_description": "Honey Wheat",
+        "brand": "Hill Country Fare",
+        "upc": None,
+        "lot_codes": None,
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+def test_recall_matching_lot_code():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Baby Spinach",
+        "upc": None,
+        "lot_code": "LOT-A123",
+    }
+
+    recall = {
+        "product_description": "Fresh Spinach",
+        "brand": None,
+        "upc": None,
+        "lot_codes": ["LOT-A123", "LOT-B456"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+
+def test_recall_same_lot_unrelated_product():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Milk",
+        "brand": "Dairy Farm",
+        "upc": "111111111111",
+        "lot_code": "LOT-A123",
+    }
+
+    recall = {
+        "product_description": "Baby Spinach",
+        "brand": "Green Valley",
+        "upc": "222222222222",
+        "lot_codes": ["LOT-A123"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"
+
+
+def test_recall_overall_possible_match():
+    from modules.recall_checker import evaluate_recall_matches
+
+    match_results = [
+        {"status": "NO_MATCH"},
+        {"status": "POSSIBLE_MATCH"},
+        {"status": "NO_MATCH"},
+    ]
+
+    result = evaluate_recall_matches(match_results)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+def test_recall_overall_recalled_priority():
+    from modules.recall_checker import evaluate_recall_matches
+
+    match_results = [
+        {"status": "POSSIBLE_MATCH"},
+        {"status": "RECALLED"},
+        {"status": "NO_MATCH"},
+    ]
+
+    result = evaluate_recall_matches(match_results)
+
+    assert result["status"] == "RECALLED"
+
+
+def test_recall_overall_invalid_results():
+    from modules.recall_checker import evaluate_recall_matches
+
+    match_results = [
+        {"status": "NO_MATCH"},
+        {"status": "UNKNOWN"},
+    ]
+
+    result = evaluate_recall_matches(match_results)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+
+def test_recall_no_matches_does_not_clear_recipe():
+    from modules.recall_checker import (
+        evaluate_recall_matches,
+        is_recipe_eligible,
+    )
+
+    result = evaluate_recall_matches([])
+
+    assert result["status"] != "CLEAR"
+    assert is_recipe_eligible(result) is False
+
     
-                                            

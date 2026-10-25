@@ -1315,3 +1315,337 @@ SmartPantry now recognizes an exact UPC match as evidence of a possible product 
 
 ---
 
+---
+
+## Test R4-026: Brand-Aware Recall Matching
+
+**Test type:** Automated unit test  
+**Test file:** `tests/test_recall_checker.py`  
+**Test function:** `test_recall_matching_brand_and_product_name()`  
+**Production function:** `match_recall_to_product()`
+
+### Objective
+Verify that SmartPantry recognizes a possible recall match when the pantry product and recall record share the same brand and have related product descriptions, even when their full product names differ.
+
+### Test Input
+- Pantry product: `Honey Wheat Bread`
+- Pantry brand: `Hill Country Fare`
+- Recall description: `Honey Wheat`
+- Recall brand: `Hill Country Fare`
+- UPC and lot codes: Unknown
+
+### Expected Result
+`POSSIBLE_MATCH`
+
+### Test History
+
+**Initial run (Red):**
+- 24 tests collected.
+- 23 tests passed.
+- 1 test failed.
+- Execution time: 0.18 seconds.
+- Failure: The function returned `NO_MATCH` because the complete pantry product name did not appear in the recall description.
+
+**Production code correction:**
+- Retrieved brand information from the pantry product and recall record.
+- Added case-insensitive brand comparison using `casefold()`.
+- Required a nonempty matching brand before evaluating the shorter recall description against the pantry product name.
+- Used word-boundary matching to identify the related product description.
+- Preserved existing UPC matching, missing-information handling, and product-name matching.
+
+**Final run (Green):**
+- 24 tests collected.
+- 24 tests passed.
+- 0 tests failed.
+- Execution time: 0.10 seconds.
+
+**Final Result: PASS**
+
+### Conclusion
+SmartPantry now recognizes a possible recall match when the brand matches and the recall description appears as a complete phrase within the pantry product name.
+
+### Remaining Limitations
+- Brand agreement alone is insufficient to establish a recall match.
+- Product-name variations and alternate terminology may still be missed.
+- Lot-code matching remains unimplemented.
+- UPC and brand matching do not establish whether a specific package is affected.
+- Individual `NO_MATCH` results do not establish overall recall clearance.
+- Recall verification remains `INCOMPLETE`.
+- USDA live retrieval and Role 5 safety-gate integration remain pending.
+
+---
+
+---
+
+## Test R4-027: Lot-Code Recall Matching
+
+**Test type:** Automated unit test  
+**Test file:** `tests/test_recall_checker.py`  
+**Test function:** `test_recall_matching_lot_code()`  
+**Production function:** `match_recall_to_product()`
+
+### Objective
+Verify that SmartPantry recognizes a possible recall match when a pantry item's lot code appears in the recall record's list of affected lot codes.
+
+### Test Input
+- Pantry product: `Baby Spinach`
+- Pantry lot code: `LOT-A123`
+- Recall description: `Fresh Spinach`
+- Recall lot codes: `["LOT-A123", "LOT-B456"]`
+- UPC: Unknown
+- Brand: Unknown
+
+### Expected Result
+`POSSIBLE_MATCH`
+
+### Test History
+
+**Initial run (Red):**
+- 25 tests collected.
+- 24 tests passed.
+- 1 test failed.
+- Execution time: 0.18 seconds.
+- Failure: The function returned `NO_MATCH` because lot-code comparison was not implemented.
+
+**Production code correction:**
+- Retrieved the pantry product's `lot_code` and recall record's `lot_codes`.
+- Validated that the pantry lot code was a nonempty string.
+- Required recall lot codes to be provided as a list.
+- Normalized lot codes using `strip()` and `casefold()`.
+- Returned `POSSIBLE_MATCH` when the pantry lot code appeared in the recall lot-code list.
+- Preserved existing UPC, product-name, brand, and missing-information matching logic.
+
+**Final run (Green):**
+- 25 tests collected.
+- 25 tests passed.
+- 0 tests failed.
+- Execution time: 0.10 seconds.
+
+**Final Result: PASS**
+
+### Conclusion
+SmartPantry now recognizes a matching lot code as preliminary evidence of a possible recall, even when the product descriptions differ.
+
+### Remaining Limitations
+- Lot codes may be reused across unrelated products or manufacturers.
+- Lot-code matches must be evaluated alongside product identity.
+- Mismatched and missing lot-code scenarios require additional validation.
+- UPC, brand, and lot-code evidence has not yet been combined into an overall recall decision.
+- A `POSSIBLE_MATCH` result does not establish a confirmed recall.
+- Recall verification remains `INCOMPLETE`.
+- USDA live retrieval and Role 5 safety-gate integration remain pending.
+
+---
+
+---
+
+## Test R4-028: Prevent False Lot-Code Matches
+
+**Test type:** Automated unit test  
+**Test file:** `tests/test_recall_checker.py`  
+**Test function:** `test_recall_same_lot_unrelated_product()`  
+**Production function:** `match_recall_to_product()`
+
+### Objective
+Verify that a shared lot code does not independently trigger a possible recall match when both records contain different UPCs and describe unrelated products.
+
+### Test Input
+
+**Pantry product:**
+- Product name: `Milk`
+- Brand: `Dairy Farm`
+- UPC: `111111111111`
+- Lot code: `LOT-A123`
+
+**Recall record:**
+- Product description: `Baby Spinach`
+- Brand: `Green Valley`
+- UPC: `222222222222`
+- Lot codes: `["LOT-A123"]`
+
+### Expected Result
+`NO_MATCH`
+
+### Test History
+
+**Initial run (Red):**
+- 26 tests collected.
+- 25 tests passed.
+- 1 test failed.
+- Execution time: 0.18 seconds.
+- Failure: The function returned `POSSIBLE_MATCH` because the shared lot code was accepted despite conflicting UPCs.
+
+**Production code correction:**
+- Added a condition to the existing lot-code matching branch.
+- Checked whether both UPCs were nonempty strings with different values.
+- Prevented the lot-code branch from matching when the UPCs conflicted.
+- Preserved the existing matching logic for UPCs, product names, brands, and missing information.
+
+**Final run (Green):**
+- 26 tests collected.
+- 26 tests passed.
+- 0 tests failed.
+- Execution time: 0.11 seconds.
+
+**Final Result: PASS**
+
+### Conclusion
+SmartPantry no longer treats a shared lot code as sufficient evidence of a possible recall match when the tested records have conflicting UPCs and unrelated product information.
+
+### Remaining Limitations
+- Different UPCs do not necessarily prove that products are unrelated.
+- Product-name and brand matching can still return `POSSIBLE_MATCH` independently.
+- Lot codes are not guaranteed to be unique across manufacturers.
+- Individual `NO_MATCH` results must never establish overall recall clearance.
+- Matching evidence has not yet been consolidated into a complete recall decision.
+- Recall verification remains `INCOMPLETE`.
+- USDA live retrieval and Role 5 safety-gate integration remain pending.
+
+---
+
+---
+
+## Test R4-029: Overall Recall Possible-Match Evaluation
+
+**Test type:** Automated unit test  
+**Test file:** `tests/test_recall_checker.py`  
+**Test function:** `test_recall_overall_possible_match()`  
+**Production function:** `evaluate_recall_matches()`
+
+### Objective
+Verify that SmartPantry identifies an overall `POSSIBLE_MATCH` when at least one individual recall comparison returns `POSSIBLE_MATCH`.
+
+### Test Input
+
+```python
+match_results = [
+    {"status": "NO_MATCH"},
+    {"status": "POSSIBLE_MATCH"},
+    {"status": "NO_MATCH"},
+]
+```
+
+### Expected Result
+`POSSIBLE_MATCH`
+
+### Test History
+
+**Initial run (Red):**
+- 27 tests collected.
+- 26 tests passed.
+- 1 test failed.
+- Execution time: 0.19 seconds.
+- Failure: `ImportError` because `evaluate_recall_matches()` did not yet exist.
+
+**Production code implementation:**
+- Created `evaluate_recall_matches(match_results)` in `modules/recall_checker.py`.
+- Positioned the new function between `match_recall_to_product()` and `is_recipe_eligible()`.
+- Added a loop to examine individual recall matching results.
+- Implemented early return of `POSSIBLE_MATCH` when any matching result has that status.
+- Implemented a fallback `NO_MATCH` result when no possible match is found.
+
+**Final run (Green):**
+- 27 tests collected.
+- 27 tests passed.
+- 0 tests failed.
+- Execution time: 0.10 seconds.
+
+**Final Result: PASS**
+
+### Conclusion
+SmartPantry can now aggregate multiple individual recall comparison results and identify when at least one record represents a possible recall match.
+
+### Remaining Limitations
+- The aggregation function currently handles `POSSIBLE_MATCH` and `NO_MATCH`.
+- `RECALLED` status precedence has not yet been implemented.
+- Empty lists and malformed results have not yet been tested.
+- The fallback `NO_MATCH` is not equivalent to overall `CLEAR`.
+- Recall source verification remains `INCOMPLETE`.
+- Recipe eligibility must remain blocked unless recall verification is both `COMPLETE` and `CLEAR`.
+- USDA live retrieval and Role 5 integration remain pending.
+
+---
+
+---
+
+## R4-030: Final Recall Aggregation and Safety Tests
+
+**Test type:** Automated unit tests and regression testing  
+**Test file:** `tests/test_recall_checker.py`  
+**Production function:** `evaluate_recall_matches()`
+
+### Objective
+
+Verify that SmartPantry prioritizes confirmed recall classifications, handles invalid matching results conservatively, and prevents empty recall results from automatically authorizing recipe recommendations.
+
+### Production Code Changes
+
+Updated `evaluate_recall_matches()` to:
+
+- Validate the input as a list.
+- Validate individual matching results and recognized statuses.
+- Return `RECALLED` when any input result has that status.
+- Return `POSSIBLE_MATCH` when no `RECALLED` result exists but a possible match is present.
+- Return `POSSIBLE_MATCH` for malformed or unrecognized results.
+- Return `NO_MATCH` when all supplied results are valid and none indicate a recall match.
+
+### Test 1: Confirmed Recall Priority
+
+**Function:** `test_recall_overall_recalled_priority()`
+
+Input statuses: `POSSIBLE_MATCH`, `RECALLED`, `NO_MATCH`
+
+Expected result: `RECALLED`
+
+**Result: PASS**
+
+### Test 2: Invalid Recall Results
+
+**Function:** `test_recall_overall_invalid_results()`
+
+Input statuses: `NO_MATCH`, `UNKNOWN`
+
+Expected result: `POSSIBLE_MATCH`
+
+**Result: PASS**
+
+### Test 3: Empty Recall Results and Recipe Safety
+
+**Function:** `test_recall_no_matches_does_not_clear_recipe()`
+
+Input: Empty recall match list
+
+Expected:
+- Overall status is not `CLEAR`.
+- `is_recipe_eligible()` returns `False`.
+
+**Result: PASS**
+
+### Regression Testing
+
+After updating the production function, all 27 existing tests passed.
+
+After adding the three safety tests:
+
+- **Total tests:** 30
+- **Passed:** 30
+- **Failed:** 0
+
+**Final Result: PASS**
+
+### Remaining Limitations
+
+- `RECALLED` precedence is tested using supplied classifications; independent recall confirmation is not implemented.
+- A `NO_MATCH` result does not establish complete recall clearance.
+- FDA and USDA source verification is not yet complete.
+- USDA FSIS live retrieval remains unresolved.
+- Role 5 recipe safety-gate integration remains pending.
+
+### Conclusion
+
+The core recall-matching and aggregation logic has passed its current automated test suite. SmartPantry continues to require both `CLEAR` and `COMPLETE` before an ingredient can be considered eligible for recipes.
+
+These results establish the tested safety behavior but do not demonstrate complete live recall verification.
+
+---
+

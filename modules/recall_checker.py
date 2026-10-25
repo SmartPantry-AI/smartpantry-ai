@@ -48,6 +48,12 @@ def match_recall_to_product(product, recall):
     product_name = product.get("product_name", "")
     recall_description = recall.get("product_description", "")
 
+    product_lot = product.get("lot_code")
+    recall_lots = recall.get("lot_codes")
+
+    product_brand = product.get("brand")
+    recall_brand = recall.get("brand")    
+
     product_upc = product.get("upc")
     recall_upc = recall.get("upc")
 
@@ -59,6 +65,27 @@ def match_recall_to_product(product, recall):
         and product_upc.strip() == recall_upc.strip()
     ):
         return {"status": "POSSIBLE_MATCH"}
+
+    if (
+        isinstance(product_lot, str)
+        and product_lot.strip()
+        and isinstance(recall_lots, list)
+        and not (
+            isinstance(product_upc, str)
+            and isinstance(recall_upc, str)
+            and product_upc.strip()
+            and recall_upc.strip()
+            and product_upc.strip() != recall_upc.strip()
+        )
+    ):   
+        normalized_lots = [
+            lot.strip().casefold()
+            for lot in recall_lots
+            if isinstance(lot, str) and lot.strip()
+        ]
+
+        if product_lot.strip().casefold() in normalized_lots:
+            return {"status": "POSSIBLE_MATCH"}
 
     if (
         not isinstance(product_name, str)
@@ -75,9 +102,43 @@ def match_recall_to_product(product, recall):
     if re.search(pattern, recall_description, re.IGNORECASE):
         return {"status": "POSSIBLE_MATCH"}
 
+    if (
+        isinstance(product_brand, str)
+        and isinstance(recall_brand, str)
+        and product_brand.strip()
+        and product_brand.strip().casefold() == recall_brand.strip().casefold()
+    ):
+        description_pattern = (
+            r"\b" + re.escape(recall_description.strip()) + r"\b"
+        )
+
+        if re.search(description_pattern, product_name, re.IGNORECASE):
+            return {"status": "POSSIBLE_MATCH"}
+
     return {
         "status": "NO_MATCH",
     }
+
+def evaluate_recall_matches(match_results):
+    """Combine individual recall matches using safety priority."""
+
+    if not isinstance(match_results, list):
+        return {"status": "POSSIBLE_MATCH"}
+
+    if not all(
+        isinstance(match, dict)
+        and match.get("status") in ("NO_MATCH", "POSSIBLE_MATCH", "RECALLED")
+        for match in match_results
+    ):
+        return {"status": "POSSIBLE_MATCH"}
+
+    if any(match["status"] == "RECALLED" for match in match_results):
+        return {"status": "RECALLED"}
+
+    if any(match["status"] == "POSSIBLE_MATCH" for match in match_results):
+        return {"status": "POSSIBLE_MATCH"}
+
+    return {"status": "NO_MATCH"}
 
 def is_recipe_eligible(recall_result):
     """Return True only when recall verification is complete and clear."""
