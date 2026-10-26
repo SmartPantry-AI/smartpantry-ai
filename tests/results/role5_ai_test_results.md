@@ -126,3 +126,23 @@ Mochi described recall alerts as a capability. The recall-checking module has no
 
 ### Conclusion
 The first live API conversation succeeded. Mochi's basic identity, communication style, and OpenAI connectivity were verified. Further testing is needed for actual pantry data, verified recalls, and integration with other SmartPantry modules.
+
+## Final Integration: API Error Handling Fix
+
+**Branch:** `feature/final-integration`
+
+**Issue:** The `test_ask_ai_handles_api_error` test failed because the exception class attribute was incorrectly written as `_name_` instead of `__name__`.
+
+**File corrected:** `modules/ai_assistant.py`
+
+**Correction:** Updated the exception logging statement to use Python's `__name__` attribute.
+
+**Verification:**
+- Individual API error-handling test: PASS (1/1)
+- Complete SmartPantry automated test suite: PASS (42/42)
+- Failed tests after correction: 0
+
+**Result:** Mochi's simulated API failure is now handled without triggering the additional `AttributeError`.
+
+**Status:** PASS
+
