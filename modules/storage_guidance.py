@@ -56,6 +56,9 @@ def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
         "spinach": "lettuce, leaf / spinach",
         "cherry tomatoes": "cherry tomatoes",
         "milk": "milk",
+        "carrot": "carrots",
+        "carrots": "carrots",
+        "apple": "apples",
     }
 
     normalized_name = food_name.strip().lower()

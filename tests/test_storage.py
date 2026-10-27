@@ -60,6 +60,44 @@ class TestStorage(unittest.TestCase):
         self.assertEqual(result["recommended_use_date"], "2026-10-27")
         self.assertEqual(result["storage_range_days"], (3, 7))
         self.assertEqual(result["storage_range_end_date"], "2026-10-31")
+    
+    def test_foodkeeper_carrot(self):
+        item = {
+            "item_id": "carrot-001",
+            "food_type": "carrot",
+            "storage_location": "REFRIGERATOR",
+            "purchase_date": "2026-10-20",
+        }
+
+        result = evaluate_foodkeeper(
+            item,
+            as_of=date(2026, 10, 25),
+        )
+
+        self.assertEqual(result["use_priority"], "LOW")
+        self.assertEqual(result["days_remaining"], 9)
+        self.assertEqual(result["recommended_use_date"], "2026-11-03")
+        self.assertEqual(result["storage_range_days"], (14, 21))
+        self.assertEqual(result["storage_range_end_date"], "2026-11-10")
+
+    def test_foodkeeper_apple(self):
+        item = {
+            "item_id": "apple-001",
+            "food_type": "apple",
+            "storage_location": "REFRIGERATOR",
+            "purchase_date": "2026-10-20",
+        }
+
+        result = evaluate_foodkeeper(
+            item,
+            as_of=date(2026, 10, 25),
+        )
+
+        self.assertEqual(result["use_priority"], "LOW")
+        self.assertEqual(result["days_remaining"], 23)
+        self.assertEqual(result["recommended_use_date"], "2026-11-17")
+        self.assertEqual(result["storage_range_days"], (28, 42))
+        self.assertEqual(result["storage_range_end_date"], "2026-12-01")
 
     def test_foodkeeper_missing_purchase_date(self):
         item = {
