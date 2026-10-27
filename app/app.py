@@ -11,7 +11,8 @@ from modules.pantry_manager import PantryManager
 from modules.pantry_database import (
     create_pantry_table,
     load_pantry_items,
-    save_pantry_item
+    save_pantry_item,
+    delete_pantry_item
 )
 
 from modules.image_recognition import recognize_food
@@ -104,6 +105,53 @@ with pantry_tab:
             st.success(f"{ingredient_name} added to your pantry!")
         else:
             st.warning("Please enter an ingredient name.")
+        st.subheader("🗑️ Remove Ingredient")
+
+    saved_pantry_items = load_pantry_items()
+
+    if saved_pantry_items:
+        selected_item = st.selectbox(
+            "Select an ingredient to remove",
+            options=saved_pantry_items,
+            format_func=lambda item: (
+                f"{item['name']} ({item['quantity']} {item['unit']})"
+            ),
+        )
+
+        if st.button("🗑️ Delete Selected Ingredient"):
+            st.session_state.pending_delete_id = selected_item["id"]
+            
+    if st.session_state.get("pending_delete_id") is not None:
+        pending_item = next(
+            (
+                item for item in saved_pantry_items
+                if item["id"] == st.session_state.pending_delete_id
+            ),
+            None
+        )
+
+        if pending_item:
+            st.warning(
+                f"Are you sure you want to delete {pending_item['name']}?"
+            )
+
+            if st.button("✅ Yes, Delete Ingredient"):
+                deleted = delete_pantry_item(pending_item["id"])
+
+                if deleted:
+                    st.session_state.pantry_manager = PantryManager()
+
+                    for item in load_pantry_items():
+                        st.session_state.pantry_manager.add_item(
+                            item["name"],
+                            item["quantity"],
+                            item["unit"]
+                        )
+
+                st.session_state.pending_delete_id = None
+                st.rerun()
+        else:
+            st.session_state.pending_delete_id = None
 
     pantry_items = st.session_state.pantry_manager.get_items()
 

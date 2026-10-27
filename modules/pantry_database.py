@@ -126,21 +126,39 @@ def load_pantry_items():
 
     try:
         cursor = connection.execute(
-            "SELECT name, quantity, unit FROM pantry ORDER BY id"
+            "SELECT id, name, quantity, unit FROM pantry ORDER BY id"
         )
 
         rows = cursor.fetchall()
 
         items = [
             {
-                "name": row[0],
-                "quantity": row[1],
-                "unit": row[2]
+                "id": row[0],
+                "name": row[1],
+                "quantity": row[2],
+                "unit": row[3]
             }
             for row in rows
         ]
 
         return items
+
+    finally:
+        connection.close()
+
+
+def delete_pantry_item(item_id):
+    """Delete one pantry ingredient using its database ID."""
+    connection = get_connection()
+
+    try:
+        cursor = connection.execute(
+            "DELETE FROM pantry WHERE id = ?",
+            (item_id,)
+        )
+
+        connection.commit()
+        return cursor.rowcount > 0
 
     finally:
         connection.close()
