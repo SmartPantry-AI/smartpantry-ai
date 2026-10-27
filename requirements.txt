@@ -3,6 +3,6 @@ requests
 python-dotenv
 openai
 pytest
-opencv-contrib-python
+opencv-contrib-python-headless
 matplotlib
 Pillow
