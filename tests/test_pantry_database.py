@@ -88,6 +88,7 @@ def test_load_pantry_items(tmp_path, monkeypatch):
 
     assert items == [
         {
+            "id": 1,
             "name": "spinach",
             "quantity": 2,
             "unit": "bag"
@@ -239,7 +240,36 @@ def test_save_pantry_item_ignores_capitalization(tmp_path, monkeypatch):
     assert items[0]["unit"] == "bag"
 
 
+def test_delete_pantry_item(tmp_path, monkeypatch):
+    test_database = tmp_path / "delete_test.db"
+
+    monkeypatch.setattr(
+        pantry_database,
+        "DATABASE_PATH",
+        test_database
+    )
+
+    pantry_database.create_pantry_table()
+
+    pantry_database.save_pantry_item("carrots", 2, "bag")
+    pantry_database.save_pantry_item("spinach", 1, "bag")
+
+    items = pantry_database.load_pantry_items()
+    carrot_id = next(
+        item["id"] for item in items
+        if item["name"] == "carrots"
+    )
+
+    deleted = pantry_database.delete_pantry_item(carrot_id)
+
+    assert deleted is True
+
+    remaining_items = pantry_database.load_pantry_items()
+
+    assert len(remaining_items) == 1
+    assert remaining_items[0]["name"] == "spinach"
     
+        
 
 
 
