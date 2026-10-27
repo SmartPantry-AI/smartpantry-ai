@@ -4,52 +4,36 @@
 import os
 import requests
 from dotenv import load_dotenv
+from modules.recall_checker import is_recipe_eligible
 
 load_dotenv(".env")
 
 spoonacular_api_key = os.getenv("SPOONACULAR_API_KEY")
 
-use_live_api = False
+def fetch_spoonacular_recipes(ingredients):
+    spoonacular_url = "https://api.spoonacular.com/recipes/findByIngredients"
 
-spoonacular_url = "https://api.spoonacular.com/recipes/findByIngredients"
+    params = {
+        "apiKey": spoonacular_api_key,
+        "ingredients": ", ".join(ingredients)
+    }
 
-params = {
-    "apiKey": spoonacular_api_key,
-    "ingredients": "chicken breast, spinach, rice"
-}
-
-if use_live_api:
     response = requests.get(
         spoonacular_url,
-        params=params
+        params=params,
+        timeout=10
     )
 
-    print("Status code:", response.status_code)
+    response.raise_for_status()
 
     recipe_data = response.json()
-    if response.status_code != 200:
-        print("Spoonacular API error:", recipe_data)
-        recipe_data = []
 
-    print(recipe_data)
+    if not isinstance(recipe_data, list):
+        raise ValueError(
+            "Unexpected Spoonacular response: expected a list of recipes"
+        )
+    return recipe_data
 
-    print(type(recipe_data))
-    print("Number of recipes returned:", len(recipe_data))
-
-    for recipe in recipe_data:
-        print(recipe["title"])
-        print("Used pantry ingredients:", recipe["usedIngredientCount"])
-
-        for ingredient in recipe["usedIngredients"]:
-            print(ingredient["name"])
-
-        print("Missing ingredients:", recipe["missedIngredientCount"])
-
-        for missing_ingredient in recipe["missedIngredients"]:
-            print(missing_ingredient["name"])
-
-ingredient_name = " Baby Spinach "
-print(ingredient_name.strip())
 
 def normalize_ingredient_name(name):
     cleaned_name = name.strip().lower()
@@ -64,6 +48,32 @@ ingredient_aliases = {
     "regular rice": "rice",
     "jasmine rice": "rice"
 }
+
+def convert_spoonacular_recipe(recipe):
+    ingredients = []
+
+    required_fields = (
+        "title",
+        "usedIngredients",
+        "missedIngredients"
+    )
+
+    for field in required_fields:
+        if field not in recipe:
+            raise ValueError(
+                f"Incomplete Spoonacular recipe: missing {field}"
+            )
+
+    for ingredient in recipe["usedIngredients"]:
+        ingredients.append(ingredient["name"])
+
+    for ingredient in recipe["missedIngredients"]:
+        ingredients.append(ingredient["name"])
+
+    return {
+        "name": recipe["title"],
+        "ingredients": ingredients
+    }
 
 def ingredients_match(pantry_name, recipe_name):
     cleaned_pantry_name = normalize_ingredient_name(pantry_name)
@@ -142,11 +152,13 @@ def calculate_total_expiration_points(pantry):
     total_points = 0
 
     for item in pantry:
-        total_points = total_points + get_expiration_points(item["days_until_expiration"])
+        days = item.get("days_until_expiration")
+
+        if days is not None:
+            total_points += get_expiration_points(days)
+        
 
     return total_points
-
-total_expiration_points = calculate_total_expiration_points(pantry)
 
 def check_recipe_ingredients(recipe, pantry_names):
     available_count = 0 
@@ -179,9 +191,10 @@ def calculate_recipe_expiration_score(recipe, pantry):
             )
 
             if match_result:
-                expiration_score = expiration_score + get_expiration_points(
-                    item["days_until_expiration"]
-                )
+                days = item.get("days_until_expiration")
+
+                if days is not None:
+                    expiration_score += get_expiration_points(days)
                        
     return expiration_score
 
@@ -299,56 +312,184 @@ def rank_recipes (
 
     return recipe_results
 
-pantry_weight = 0.60
-expiration_weight = 0.40
+def filter_recipes_by_recall_status(recipes, pantry, recall_results):
+    """Exclude recipes using pantry ingredients without verified recall clearance."""
+    eligible_recipes = []
 
-ranked_recipes = rank_recipes(
+    for recipe in recipes:
+        pantry_ingredients = [
+            item["name"]
+            for item in pantry
+            if any(
+                ingredients_match(item["name"], ingredient)
+                for ingredient in recipe["ingredients"]
+            )
+        ]
+
+        all_ingredients_clear = all(
+            is_recipe_eligible(recall_results.get(name, {}))
+            for name in pantry_ingredients
+        )
+
+        if pantry_ingredients and all_ingredients_clear:
+            eligible_recipes.append(recipe)
+
+    return eligible_recipes
+
+def suggest_verified_recipe_alternatives(recipes, pantry, recall_results):
+    """ Suggest alternatives only when unsafe or unverified ingredients are explicitly optional."""
+    alternatives = []
+
+    for recipe in recipes:
+        optional_ingredients = recipe.get("optional_ingredients", [])
+
+        if not optional_ingredients:
+            continue
+
+        removed_ingredients = []
+
+        for ingredient in optional_ingredients:
+            recall_result = recall_results.get(ingredient, {})
+
+            if not is_recipe_eligible(recall_result):
+                removed_ingredients.append(ingredient)
+
+        required_ingredients = [
+            ingredient
+            for ingredient in recipe["ingredients"]
+            if ingredient not in optional_ingredients
+        ]
+
+        required_pantry_ingredients = [
+            item["name"]
+            for item in pantry
+            if any(
+                ingredients_match(item["name"], ingredient)
+                for ingredient in required_ingredients
+            )
+            
+        ]
+
+        all_required_clear = all(
+            is_recipe_eligible(recall_results.get(name, {}))
+            for name in required_pantry_ingredients
+        )
+
+        if(
+            len(required_pantry_ingredients) != len(required_ingredients)
+            or not all_required_clear
+        ):
+            continue
+
+        if removed_ingredients:
+            alternative = {
+                "name": recipe["name"],
+                "ingredients": [
+                    ingredient
+                    for ingredient in recipe["ingredients"]
+                    if ingredient not in removed_ingredients
+                ],
+                "removed_ingredients": removed_ingredients
+            }
+
+            alternatives.append(alternative)    
+
+    return alternatives
+
+
+def rank_recall_checked_recipes(
     recipes,
     pantry,
-    pantry_weight,
-    expiration_weight
-)
+    recall_results,
+    pantry_weight=0.60,
+    expiration_weight=0.40
+):
 
-print("Total pantry expiration points:", total_expiration_points)
+    eligible_recipes = filter_recipes_by_recall_status(
+        recipes,
+        pantry,
+        recall_results
+    )
 
-
-
-for recipe in recipes:
-    print("\nRecipe:", recipe["name"])
-
-    for ingredient in recipe["ingredients"]:
-        if ingredient in pantry_names:
-            print(ingredient, "- HAVE")
-        else:
-            print(ingredient, "- MISSING")            
-
-    (
-        available_count,
-        missing_count,
-        expiration_score,
-        expiration_coverage,
-        final_score,
-        pantry_coverage
-    ) = score_recipe(
-        recipe,
+    return rank_recipes(
+        eligible_recipes,
         pantry,
         pantry_weight,
         expiration_weight
     )
-        
 
-    print("Availble ingredients:", available_count)
-    print("Missing ingredients:", missing_count)
-    print("Pantry coverage:", pantry_coverage, "%")
-    print("Expiration score:", expiration_score)
-    print("Expiration coverage:", expiration_coverage, "%")
-    print("Final recipe score:", final_score)
+def rank_spoonacular_recipes(
+        spoonacular_recipes,
+        pantry,
+        pantry_weight=0.60,
+        expiration_weight=0.40
+):
+        converted_recipes = [
+            convert_spoonacular_recipe(recipe)
+            for recipe in spoonacular_recipes
+        ]
 
-print("\nSMARTPANTRY RECOMMENDATIONS")
+        return rank_recipes(
+            converted_recipes,
+            pantry,
+            pantry_weight,
+            expiration_weight
+        )
 
-rank = 1
+if __name__ == "__main__":
 
-for result in ranked_recipes:
-    print(rank, "-", result["name"], "-", result["score"])
-    rank = rank + 1
+    pantry_weight = 0.60
+    expiration_weight = 0.40
+
+    ranked_recipes = rank_recipes(
+        recipes,
+        pantry,
+        pantry_weight,
+        expiration_weight
+    )
+
+    total_expiration_points = calculate_total_expiration_points(pantry)
+
+    print("Total pantry expiration points:", total_expiration_points)
+
+
+
+    for recipe in recipes:
+        print("\nRecipe:", recipe["name"])
+
+        for ingredient in recipe["ingredients"]:
+            if ingredient in pantry_names:
+                print(ingredient, "- HAVE")
+            else:
+                print(ingredient, "- MISSING")            
+
+        (
+            available_count,
+            missing_count,
+            expiration_score,
+            expiration_coverage,
+            final_score,
+            pantry_coverage
+        ) = score_recipe(
+            recipe,
+            pantry,
+            pantry_weight,
+            expiration_weight
+        )
+            
+
+        print("Availble ingredients:", available_count)
+        print("Missing ingredients:", missing_count)
+        print("Pantry coverage:", pantry_coverage, "%")
+        print("Expiration score:", expiration_score)
+        print("Expiration coverage:", expiration_coverage, "%")
+        print("Final recipe score:", final_score)
+
+    print("\nSMARTPANTRY RECOMMENDATIONS")
+
+    rank = 1
+
+    for result in ranked_recipes:
+        print(rank, "-", result["name"], "-", result["score"])
+        rank = rank + 1
 
