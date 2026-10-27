@@ -57,6 +57,7 @@ def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
         "cherry tomatoes": "cherry tomatoes",
         "milk": "milk",
         "carrot": "carrots",
+        "carrots": "carrots",
         "apple": "apples",
     }
 

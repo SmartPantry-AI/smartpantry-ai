@@ -197,3 +197,78 @@ After the migration, Streamlit was restarted and the pantry inventory was inspec
 
 **Note:** These results confirm the tested functionality. Additional end-to-end testing will be needed as more features are connected to the Streamlit application.
 
+## Barcode Lookup and Pantry Integration
+
+**Test Type:** Manual integration testing
+
+**Components:**
+- Streamlit barcode lookup interface
+- OpenCV barcode decoding
+- Open Food Facts API
+- SQLite pantry database
+- PantryManager
+
+### Test 1: Live Barcode Identification
+
+**Input:** H-E-B Old Fashioned Oats barcode image
+
+**Barcode:** 041220892617
+
+**Expected Result:** The application identifies the product
+and displays its information for user review.
+
+**Actual Result:** The product was successfully identified
+as Old Fashioned Oats, brand H-E-B.
+
+**Status:** PASS
+
+### Test 2: Barcode Product Confirmation and SQLite Persistence
+
+**Input:** Old Fashioned Oats, quantity 1, unit item
+
+**Expected Result:** Confirmed product is saved to SQLite.
+
+**Actual Result:** The database contained Old Fashioned Oats
+with quantity 1 and unit item. The item remained available
+after restarting Streamlit.
+
+**Status:** PASS
+
+### Test 3: Pantry Refresh
+
+**Test Input:** SmartPantry Test Oats, quantity 1, unit item
+
+**Expected Result:** Confirmed products appear in My Pantry
+without requiring a manual application restart.
+
+**Actual Result:** The test product appeared after a manual
+Streamlit rerun. The application was subsequently updated
+to call st.rerun() after successful confirmation.
+
+**Status:** PARTIALLY VERIFIED
+
+**Note:** Automatic refresh has been implemented but has
+not yet been independently retested after the change.
+
+### Test 4: Automated Regression Tests
+
+**Command:** python -m pytest tests/ -q
+
+**Actual Result:** 108 passed
+
+**Status:** PASS
+
+## Cleanup
+
+The temporary barcode test button was removed.
+The SmartPantry Test Oats record was deleted from SQLite.
+Real pantry records were preserved.
+
+## Limitations
+
+- Barcode product information depends on Open Food Facts coverage.
+- Users must confirm the product name, quantity, and unit.
+- The automated test suite does not directly cover the new
+  Streamlit confirmation workflow.
+- Automatic pantry refresh requires a final manual verification.
+
