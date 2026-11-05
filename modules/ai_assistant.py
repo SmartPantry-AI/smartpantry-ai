@@ -149,7 +149,7 @@ def interpret_pantry_request(user_message):
                     "properties": {
                         "action": {"type": "string"},
                         "ingredient": {"type": "string"},
-                        "quantity": {"type": "string"},
+                        "quantity": {"type": "number"},
                         "unit": {"type": "string"}
                     },
                     "required": ["action", "ingredient", "quantity", "unit"],
