@@ -6,3 +6,5 @@ pytest
 opencv-contrib-python-headless
 matplotlib
 Pillow
+supabase
+
