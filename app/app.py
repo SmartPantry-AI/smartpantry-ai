@@ -450,10 +450,15 @@ if selected_page == "🥕 My Pantry":
         st.info("Your pantry is empty. Add your first ingredient!")
 
 if selected_page == "📷 Scan Food":
+    st.header("📷 Scan Food")
+    st.caption("Identify ingredients from photos or look up products using their barcodes.")
+    st.divider()
+
     image_column, barcode_column = st.columns(2, gap="large")
 
     with image_column:
         st.subheader("📷 Food Image Recognition")
+        st.caption("Upload a photo of food and let AI identify the ingredient.")
 
         uploaded_image = st.file_uploader(
             "Upload a food image",
@@ -463,7 +468,11 @@ if selected_page == "📷 Scan Food":
         if uploaded_image is not None:
             st.image(uploaded_image, caption="Uploaded food image")
 
-            if st.button("🔍 Identify Food"):
+            if st.button(
+                "🔍 Identify Food",
+                type="primary",
+                use_container_width=True
+            ):
                 temporary_path = None
 
                 try:
@@ -491,6 +500,7 @@ if selected_page == "📷 Scan Food":
 
     with barcode_column:
         st.subheader("📦 Barcode Product Lookup")
+        st.caption("Scan a product barcode to retrieve its details from Open Food Facts.")
 
         barcode_image = st.file_uploader(
             "Upload a photo of a product barcode",
@@ -507,7 +517,11 @@ if selected_page == "📷 Scan Food":
             if "identified_barcode_product" not in st.session_state:
                 st.session_state.identified_barcode_product = None
 
-            if st.button("🔍 Identify Product"):
+            if st.button(
+                "🔍 Identify Product",
+                type="primary",
+                use_container_width=True
+            ):
                 barcode_path = None
 
                 try:
@@ -554,21 +568,29 @@ if selected_page == "📷 Scan Food":
                 key="confirmed_barcode_name"
             )
 
-            confirmed_quantity = st.number_input(
-                "Quantity to add",
-                min_value=1,
-                value=1,
-                step=1,
-                key="confirmed_barcode_quantity"
-            )
+            quantity_column, unit_column = st.columns(2, gap="large")
 
-            confirmed_unit = st.selectbox(
-                "Unit",
-                ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
-                key="confirmed_barcode_unit"
-            )
+            with quantity_column:
+                confirmed_quantity = st.number_input(
+                    "Quantity to add",
+                    min_value=1,
+                    value=1,
+                    step=1,
+                    key="confirmed_barcode_quantity"
+                )
 
-            if st.button("✅ Confirm and Add to Pantry"):
+            with unit_column:
+                confirmed_unit = st.selectbox(
+                    "Unit",
+                    ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
+                    key="confirmed_barcode_unit"
+                )
+
+            if st.button(
+                "✅ Confirm and Add to Pantry",
+                type="primary",
+                use_container_width=True
+            ):
                 if not confirmed_name.strip():
                     st.warning("Please enter a product name.")
                 else:
