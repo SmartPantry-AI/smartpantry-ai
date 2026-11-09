@@ -135,7 +135,6 @@ with st.sidebar:
 st.title("🥗 SmartPantry AI")
 st.write("Your intelligent kitchen assistant.")
 
-st.info("Welcome! Manage your pantry, check food safety, and discover recipes.")
 
 
 if "pantry_manager" not in st.session_state:
@@ -152,6 +151,79 @@ if "pantry_manager" not in st.session_state:
             item["unit"]
         )
 
+if selected_page == "🏠 Home":
+    st.header("🏠 Your Kitchen Dashboard")
+    st.write("Welcome back! Here's what's happening in your kitchen.")
+    
+    pantry_items = st.session_state.pantry_manager.get_items()
+    total_quantity = sum(item["quantity"] for item in pantry_items)
+    items_column, quantity_column = st.columns(2, gap="large")
+
+    with items_column:
+        with st.container(border=True):
+            st.metric("🥕 Pantry Items", len(pantry_items))
+            st.caption("Items currently in your pantry")
+
+    with quantity_column:
+        with st.container(border=True):
+            st.metric("📦 Recorded Quantity", total_quantity)
+            st.caption("Combined quantities across all units")
+
+    st.divider()
+    st.subheader("⚡ Quick Actions")
+
+    pantry_action, scan_action = st.columns(2, gap="large")
+    safety_action, mochi_action = st.columns(2, gap="large")
+
+    with pantry_action:
+        st.button(
+            "🥕 My Pantry",
+            use_container_width=True,
+            type="primary",
+            on_click=lambda: st.session_state.update(
+                main_navigation="🥕 My Pantry"
+            )
+        )
+    with scan_action:
+        st.button(
+            "📷 Scan Food",
+            use_container_width=True,
+            type="primary",
+            on_click=lambda: st.session_state.update(
+                main_navigation="📷 Scan Food"
+            )
+        )
+
+    with safety_action:
+        st.button(
+            "🧊 Food Safety",
+            use_container_width=True,
+            type="primary",
+            on_click=lambda: st.session_state.update(
+                main_navigation="🧊 Food Safety"
+            )
+        )
+
+    with mochi_action:
+        st.button(
+            "🍡 Mochi AI",
+            use_container_width=True,
+            type="primary",
+            on_click=lambda: st.session_state.update(
+                main_navigation="🍡 Mochi AI"
+            )
+        )
+    
+    st.divider()
+    st.subheader("🥕 Your Pantry at a Glance")
+
+    if pantry_items:
+        for item in pantry_items:
+            with st.container(border=True):
+                st.write(f"🥕 **{item['name'].title()}**")
+                st.caption(f"Quantity: {item['quantity']} {item['unit']}")
+    else:
+        st.info("Your pantry is empty. Add your first ingredient!")
 
 if selected_page == "🥕 My Pantry":
     st.header("🥕 My Pantry")
