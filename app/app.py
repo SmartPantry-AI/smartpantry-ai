@@ -14,6 +14,7 @@ from modules.supabase_pantry import (
     load_user_pantry,
     add_pantry_item,
     delete_user_pantry_item,
+    update_pantry_item_quantity,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -243,6 +244,63 @@ with pantry_tab:
                     st.error("Unable to delete ingredient. Please try again.")
         else:
             st.session_state.pending_delete_id = None
+
+    st.subheader("✏️ Update Quantity")
+
+    quantity_items = load_user_pantry(
+        st.session_state.supabase_client
+    )
+
+    if quantity_items:
+        selected_quantity_item = st.selectbox(
+            "Select an ingredient to update",
+            options=quantity_items,
+            format_func=lambda item: (
+                f"{item['name']} "
+                f"({item['quantity']} {item['unit']})"
+                f"[ID: {item['id']}]"
+            ),
+            key="quantity_item_selection"
+        )
+
+        new_quantity = st.number_input(
+            "New quantity",
+            min_value=1,
+            value=int(selected_quantity_item["quantity"]),
+            step=1,
+            key=f"new_quantity_{selected_quantity_item["id"]}"
+        )
+
+        if st.button("💾 Update Quantity"):
+            try:
+                updated = update_pantry_item_quantity(
+                    st.session_state.supabase_client,
+                    selected_quantity_item["id"],
+                    new_quantity
+                )
+
+                if updated:
+                    st.session_state.pantry_manager = PantryManager()
+
+                    for item in load_user_pantry(
+                        st.session_state.supabase_client
+                    ):
+                        st.session_state.pantry_manager.add_item(
+                            item["name"],
+                            item["quantity"],
+                            item["unit"]
+                        )
+                    st.success("Quantity updated successfully!")
+                    st.rerun()
+                else:
+                    st.warning("Quantity was not updated.")
+
+            except Exception:
+                st.error("Unable to update quantity. Please try again.")
+
+
+    else:
+        st.info("Add an ingredient before updating quantities.")
 
     pantry_items = st.session_state.pantry_manager.get_items()
 
