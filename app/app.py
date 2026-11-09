@@ -112,20 +112,31 @@ if st.sidebar.button("🚪 Sign Out"):
         st.rerun()    
 
 
+with st.sidebar:
+    st.title("🥗 SmartPantry")
+    st.caption("Your intelligent kitchen companion")
+
+    st.divider()
+
+    selected_page = st.radio(
+        "Navigation",
+        [
+           "🏠 Home",
+            "🥕 My Pantry",
+            "📷 Scan Food",
+            "🧊 Food Safety",
+            "🍳 Recipes",
+            "🍡 Mochi AI"  
+        ],
+        label_visibility="collapsed",
+        key="main_navigation"
+    )
+
 st.title("🥗 SmartPantry AI")
 st.write("Your intelligent kitchen assistant.")
 
 st.info("Welcome! Manage your pantry, check food safety, and discover recipes.")
 
-pantry_tab, scan_tab, safety_tab, recipes_tab, mochi_tab = st.tabs(
-    [
-        "🥕 My Pantry",
-        "📷 Scan Food",
-        "🧊 Food Safety",
-        "🍳 Recipes",
-        "🍡 Mochi"
-    ]
-)
 
 if "pantry_manager" not in st.session_state:
     st.session_state.pantry_manager = PantryManager()
@@ -142,7 +153,7 @@ if "pantry_manager" not in st.session_state:
         )
 
 
-with pantry_tab:
+if selected_page == "🥕 My Pantry":
     st.header("🥕 My Pantry")
 
     ingredient_name = st.text_input("Ingredient name")
@@ -313,7 +324,7 @@ with pantry_tab:
     else:
         st.info("Your pantry is empty. Add your first ingredient!")
 
-with scan_tab:
+if selected_page == "📷 Scan Food":
     image_column, barcode_column = st.columns(2, gap="large")
 
     with image_column:
@@ -353,8 +364,121 @@ with scan_tab:
                     if temporary_path is not None:
                         temporary_path.unlink(missing_ok=True)
 
+    with barcode_column:
+        st.subheader("📦 Barcode Product Lookup")
 
-with safety_tab:
+        barcode_image = st.file_uploader(
+            "Upload a photo of a product barcode",
+            type=["jpg", "jpeg", "png"],
+            key="barcode_upload"
+        )
+
+        if barcode_image is not None:
+            st.image(
+                barcode_image,
+                caption="Uploaded barcode image",
+                width=250
+            )
+            if "identified_barcode_product" not in st.session_state:
+                st.session_state.identified_barcode_product = None
+
+            if st.button("🔍 Identify Product"):
+                barcode_path = None
+
+                try:
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        suffix=Path(barcode_image.name).suffix
+                    ) as temporary_file:
+                        temporary_file.write(barcode_image.getvalue())
+                        barcode_path = Path(temporary_file.name)
+
+                    with st.spinner("Identifying product..."):
+                        product, error = identify_product(str(barcode_path))
+
+                    if error:
+                        st.session_state.identified_barcode_product = None
+                        st.warning(error)
+                    elif product:
+                        st.session_state.identified_barcode_product = product
+                        st.success("Product identified!")
+                        st.write("Product:", product.get("product_name"))
+                        st.write("Brand:", product.get("brand"))
+                        st.write("Barcode:", product.get("barcode"))
+                        st.write("Quantity:", product.get("quantity"))
+                        st.caption(
+                            "Product information comes from Open Food Facts. "
+                            "Review the details before adding anything to your pantry."
+                        )
+
+                except Exception as error:
+                    st.error(f"Barcode lookup failed: {error}")
+
+                finally:
+                    if barcode_path is not None:
+                        barcode_path.unlink(missing_ok=True)
+        
+        product_to_confirm = st.session_state.get("identified_barcode_product")
+
+        if product_to_confirm:
+            st.markdown("#### Confirm Product")
+
+            confirmed_name = st.text_input(
+                "Product name",
+                value=product_to_confirm.get("product_name") or "",
+                key="confirmed_barcode_name"
+            )
+
+            confirmed_quantity = st.number_input(
+                "Quantity to add",
+                min_value=1,
+                value=1,
+                step=1,
+                key="confirmed_barcode_quantity"
+            )
+
+            confirmed_unit = st.selectbox(
+                "Unit",
+                ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
+                key="confirmed_barcode_unit"
+            )
+
+            if st.button("✅ Confirm and Add to Pantry"):
+                if not confirmed_name.strip():
+                    st.warning("Please enter a product name.")
+                else:
+                    try:
+                        add_pantry_item(
+                            st.session_state.supabase_client,
+                            confirmed_name.strip(),
+                            confirmed_quantity,
+                            confirmed_unit
+                        )
+
+                        st.session_state.pantry_manager = PantryManager()
+
+                        for item in load_user_pantry(
+                            st.session_state.supabase_client
+                        ):
+                            st.session_state.pantry_manager.add_item(
+                                item["name"],
+                                item["quantity"],
+                                item["unit"]
+                            )
+
+                    except Exception:
+                        st.error("Unable to save product to your pantry.")
+                        st.stop()
+                
+                    st.session_state.identified_barcode_product = None
+
+                    st.success(
+                        f"{confirmed_name.strip()} added to your pantry!"
+                    )
+
+                    st.rerun() 
+
+if selected_page == "🧊 Food Safety":
     storage_column, recall_column = st.columns(2, gap="large")
 
     with storage_column:
@@ -404,69 +528,69 @@ with safety_tab:
                 )
 
 
-with recall_column:
-    st.subheader("🚨 Food Recall Checker")
+    with recall_column:
+        st.subheader("🚨 Food Recall Checker")
 
-    recall_product = st.text_input(
-        "Enter a food product to check for FDA recalls",
-        placeholder="Example: peanut butter"
-    )
+        recall_product = st.text_input(
+            "Enter a food product to check for FDA recalls",
+            placeholder="Example: peanut butter"
+        )
 
-    if st.button("🔍 Search FDA Recalls"):
-        if not recall_product.strip():
-            st.warning("Please enter a product name.")
-        else:
-            with st.spinner("Searching FDA recall records..."):
-                recall_result = get_fda_recalls(
-                    recall_product.strip(),
-                    limit=10
+        if st.button("🔍 Search FDA Recalls"):
+            if not recall_product.strip():
+                st.warning("Please enter a product name.")
+            else:
+                with st.spinner("Searching FDA recall records..."):
+                    recall_result = get_fda_recalls(
+                        recall_product.strip(),
+                        limit=10
+                    )
+
+                records = recall_result["records"]
+
+                if recall_result["error"]:
+                    st.error(
+                        f"Recall search could not be completed: "
+                        f"{recall_result['error']}"
+                    )
+
+                if records:
+                    st.warning(
+                        f"Found {len(records)} FDA recall records. "
+                        "These are search results, not confirmed matches "
+                        "to your specific product."
+                    )
+
+                    for record in records[:10]:
+                        with st.expander(
+                            record.get("product_description", "Recall record")
+                        ):
+                            st.write(
+                                "Recall number:",
+                                record.get("recall_number", "Not available")
+                            )
+                            st.write(
+                                "Reason:",
+                                record.get("reason_for_recall", "Not available")
+                            )
+                            st.write(
+                                "Recall status:",
+                                record.get("status", "Not available")
+                            )
+
+                elif not recall_result["error"]:
+                    st.info(
+                        "No records returned for this search. "
+                        "Product safety has not been verified."
+                    )
+
+                st.caption(
+                    "FDA search only. Recall verification remains incomplete. "
+                    "Confirm product identifiers and official recall details."
                 )
 
-            records = recall_result["records"]
 
-            if recall_result["error"]:
-                st.error(
-                    f"Recall search could not be completed: "
-                    f"{recall_result['error']}"
-                )
-
-            if records:
-                st.warning(
-                    f"Found {len(records)} FDA recall records. "
-                    "These are search results, not confirmed matches "
-                    "to your specific product."
-                )
-
-                for record in records[:10]:
-                    with st.expander(
-                        record.get("product_description", "Recall record")
-                    ):
-                        st.write(
-                            "Recall number:",
-                            record.get("recall_number", "Not available")
-                        )
-                        st.write(
-                            "Reason:",
-                            record.get("reason_for_recall", "Not available")
-                        )
-                        st.write(
-                            "Recall status:",
-                            record.get("status", "Not available")
-                        )
-
-            elif not recall_result["error"]:
-                st.info(
-                    "No records returned for this search. "
-                    "Product safety has not been verified."
-                )
-
-            st.caption(
-                "FDA search only. Recall verification remains incomplete. "
-                "Confirm product identifiers and official recall details."
-            )
-
-
-with recipes_tab:
+if selected_page == "🍳 Recipes":
     st.subheader("🍳 Recipe Recommendations")
 
     st.write(
@@ -503,7 +627,7 @@ with recipes_tab:
             "and are not approved recommendations."
         )
 
-with mochi_tab:
+if selected_page == "🍡 Mochi AI":
     st.image(PROJECT_ROOT / "assets" / "mochi_avatar.png", width=140)
     st.subheader("Meet Mochi, Your AI Kitchen Assistant")
 
@@ -522,117 +646,5 @@ with mochi_tab:
             st.info(mochi_response)
 
 
-with barcode_column:
-    st.subheader("📦 Barcode Product Lookup")
 
-    barcode_image = st.file_uploader(
-        "Upload a photo of a product barcode",
-        type=["jpg", "jpeg", "png"],
-        key="barcode_upload"
-    )
-
-    if barcode_image is not None:
-        st.image(
-            barcode_image,
-            caption="Uploaded barcode image",
-            width=250
-        )
-        if "identified_barcode_product" not in st.session_state:
-            st.session_state.identified_barcode_product = None
-
-        if st.button("🔍 Identify Product"):
-            barcode_path = None
-
-            try:
-                with tempfile.NamedTemporaryFile(
-                    delete=False,
-                    suffix=Path(barcode_image.name).suffix
-                ) as temporary_file:
-                    temporary_file.write(barcode_image.getvalue())
-                    barcode_path = Path(temporary_file.name)
-
-                with st.spinner("Identifying product..."):
-                    product, error = identify_product(str(barcode_path))
-
-                if error:
-                    st.session_state.identified_barcode_product = None
-                    st.warning(error)
-                elif product:
-                    st.session_state.identified_barcode_product = product
-                    st.success("Product identified!")
-                    st.write("Product:", product.get("product_name"))
-                    st.write("Brand:", product.get("brand"))
-                    st.write("Barcode:", product.get("barcode"))
-                    st.write("Quantity:", product.get("quantity"))
-                    st.caption(
-                        "Product information comes from Open Food Facts. "
-                        "Review the details before adding anything to your pantry."
-                    )
-
-            except Exception as error:
-                st.error(f"Barcode lookup failed: {error}")
-
-            finally:
-                if barcode_path is not None:
-                    barcode_path.unlink(missing_ok=True)
-    
-    product_to_confirm = st.session_state.get("identified_barcode_product")
-
-    if product_to_confirm:
-        st.markdown("#### Confirm Product")
-
-        confirmed_name = st.text_input(
-            "Product name",
-            value=product_to_confirm.get("product_name") or "",
-            key="confirmed_barcode_name"
-        )
-
-        confirmed_quantity = st.number_input(
-            "Quantity to add",
-            min_value=1,
-            value=1,
-            step=1,
-            key="confirmed_barcode_quantity"
-        )
-
-        confirmed_unit = st.selectbox(
-            "Unit",
-            ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
-            key="confirmed_barcode_unit"
-        )
-
-        if st.button("✅ Confirm and Add to Pantry"):
-            if not confirmed_name.strip():
-                st.warning("Please enter a product name.")
-            else:
-                try:
-                    add_pantry_item(
-                        st.session_state.supabase_client,
-                        confirmed_name.strip(),
-                        confirmed_quantity,
-                        confirmed_unit
-                    )
-
-                    st.session_state.pantry_manager = PantryManager()
-
-                    for item in load_user_pantry(
-                        st.session_state.supabase_client
-                    ):
-                        st.session_state.pantry_manager.add_item(
-                            item["name"],
-                            item["quantity"],
-                            item["unit"]
-                        )
-
-                except Exception:
-                    st.error("Unable to save product to your pantry.")
-                    st.stop()
-             
-                st.session_state.identified_barcode_product = None
-
-                st.success(
-                    f"{confirmed_name.strip()} added to your pantry!"
-                )
-
-                st.rerun()   
 
