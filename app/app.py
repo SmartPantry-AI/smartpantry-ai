@@ -626,10 +626,16 @@ if selected_page == "📷 Scan Food":
                     st.rerun() 
 
 if selected_page == "🧊 Food Safety":
+    st.header("🧊 Food Safety")
+    st.caption("Explore food storage guidance and search FDA recall records.")
+    st.divider()
+
     storage_column, recall_column = st.columns(2, gap="large")
 
     with storage_column:
         st.subheader("🧊 Food Storage Recommendations")
+        st.caption("Check available FoodKeeper guidance for refrigerated ingredients.")
+        st.caption("Storage location: Refrigerator")
 
         storage_food = st.text_input(
             "Ingredient for storage guidance",
@@ -641,7 +647,11 @@ if selected_page == "🧊 Food Safety":
             value=date.today()
         )
 
-        if st.button("🧊 Check Storage Guidance"):
+        if st.button(
+            "🧊 Check Storage Guidance",
+            type="primary",
+            use_container_width=True
+        ):
             item = {
                 "item_id": "storage-demo-001",
                 "food_type": storage_food,
@@ -653,6 +663,7 @@ if selected_page == "🧊 Food Safety":
                 item,
                 as_of=date.today()
             )
+            st.markdown("#### 📋 Storage Guidance Results")
 
             if result["use_priority"] == "UNKNOWN":
                 st.warning(result["reason"])
@@ -662,13 +673,14 @@ if selected_page == "🧊 Food Safety":
                     f"{result['recommended_use_date']}"
                 )
 
-                st.write(
-                    f"Use priority: {result['use_priority']}"
-                )
+            if result["use_priority"] != "UNKNOWN":
+                priority_column, days_column = st.columns(2, gap="large")
 
-                st.write(
-                    f"Days remaining: {result['days_remaining']}"
-                )
+                with priority_column:
+                    st.metric("Use Priority", result["use_priority"])
+
+                with days_column:
+                    st.metric("Days Remaining", result["days_remaining"])
 
                 st.caption(
                     "This is a use-soon reminder, not a food safety determination."
@@ -677,13 +689,19 @@ if selected_page == "🧊 Food Safety":
 
     with recall_column:
         st.subheader("🚨 Food Recall Checker")
+        st.caption("Search FDA recall records for products that may have been recalled.")
+        st.caption("Search results are not confirmation that your specific product is affected.")
 
         recall_product = st.text_input(
             "Enter a food product to check for FDA recalls",
             placeholder="Example: peanut butter"
         )
 
-        if st.button("🔍 Search FDA Recalls"):
+        if st.button(
+            "🔍 Search FDA Recalls",
+            type="primary",
+            use_container_width=True
+        ):
             if not recall_product.strip():
                 st.warning("Please enter a product name.")
             else:
@@ -694,6 +712,8 @@ if selected_page == "🧊 Food Safety":
                     )
 
                 records = recall_result["records"]
+
+                st.markdown("#### 📋 Recall Search Results")
 
                 if recall_result["error"]:
                     st.error(
@@ -712,6 +732,12 @@ if selected_page == "🧊 Food Safety":
                         with st.expander(
                             record.get("product_description", "Recall record")
                         ):
+
+                            st.caption(
+                                "FDA recall record. Verify product identifiers" 
+                                " before determining whether your item is affected."
+                            )
+                            
                             st.write(
                                 "Recall number:",
                                 record.get("recall_number", "Not available")
