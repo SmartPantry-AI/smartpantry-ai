@@ -764,21 +764,37 @@ if selected_page == "🧊 Food Safety":
 
 
 if selected_page == "🍳 Recipes":
-    st.subheader("🍳 Recipe Recommendations")
+    st.header("🍳 Recipe Recommendations")
+    st.caption(
+        "Explore recipe ideas based on your pantry ingredients "
+        "and review their recommendation status."
+    )
+
+    st.divider()
 
     st.write(
         "Find recipes using pantry ingredients, "
         "with recall verification required before recommending them."
     )
 
-    if st.button("🍽️ Find Recipes"):
+    if st.button(
+        "🍽️ Find Recipes",
+        type="primary",
+        use_container_width=True
+    ):
         st.info(
             "Recipe recommendations require verified recall clearance. "
             "Ingredients with incomplete recall checks cannot be "
             "approved for recipe recommendations."
         )
 
-        st.subheader("Recipe Ranking Using Your Pantry")
+        st.subheader("🥗 Sample Recipe Rankings")
+        st.caption(
+            "Explore how sample recipes rank against your saved pantry ingredients. "
+            "These are examples, not verified recipe recommendations."
+        )
+
+        pantry_items = st.session_state.pantry_manager.get_items()
 
         ranked_recipes = rank_recipes(
             sample_recipes,
@@ -788,10 +804,9 @@ if selected_page == "🍳 Recipes":
         )
 
         for index, recipe in enumerate(ranked_recipes, start=1):
-            st.write(
-                f"{index}. {recipe['name']} "
-                f"— Score: {recipe['score']:.1f}"
-            )
+            with st.container(border=True):
+                st.write(f"**{index}. {recipe['name']}**")
+                st.caption(f"Sample ranking score: {recipe['score']:.1f}")
 
         st.caption(
             "Rankings use your saved pantry ingredients and sample recipes. "
