@@ -1,19 +1,25 @@
 # SmartPantry AI
 # Main Streamlit application
+
 import sys
 from pathlib import Path
+
+from modules.pantry_manager import PantryManager
+
+from modules.supabase_client import get_supabase_client
+
+from modules.supabase_auth import sign_in_user, sign_out_user
+
+from modules.supabase_pantry import (
+    load_user_pantry,
+    add_pantry_item,
+    delete_user_pantry_item,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
-from modules.pantry_manager import PantryManager
-from modules.pantry_database import (
-    create_pantry_table,
-    load_pantry_items,
-    save_pantry_item,
-    delete_pantry_item
-)
 
 from modules.image_recognition import recognize_food
 import tempfile
@@ -36,11 +42,74 @@ from modules.ai_assistant import ask_ai
 
 from modules.barcode_lookup import identify_product
 
+
 st.set_page_config(
     page_title="SmartPantry AI",
     page_icon="🥗",
     layout="wide"
 )
+
+if "supabase_client" not in st.session_state:
+    st.session_state.supabase_client = get_supabase_client()
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if st.session_state.authenticated:
+    try:
+        user_response = st.session_state.supabase_client.auth.get_user()
+
+        if (
+            user_response.user is None
+            or user_response.user.id != st.session_state.get("user_id")
+        ):
+            st.session_state.clear()
+            st.rerun()
+
+    except Exception:
+        st.session_state.clear()
+        st.rerun()
+
+
+if not st. session_state.authenticated:
+    st.subheader("🔐 Sign in to SmartPantry")
+
+    with st.form("login_form"):
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+        login_button = st.form_submit_button("Sign In")
+
+    if login_button:
+        if not email.strip() or not password:
+            st.error("Please enter your email and password.")
+        else:
+            try:
+                response = sign_in_user(
+                    st.session_state.supabase_client,
+                    email.strip(),
+                    password,
+                )
+
+                if response.user is None or response.session is None:
+                    st.error("Unable to sign in.")
+                else:
+                    st.session_state.authenticated = True
+                    st.session_state.user_id = response.user.id
+                    st.rerun()
+                    
+
+            except Exception:
+                st.error("Unable to sign in. Please check your crednetials.")
+
+    st.stop()
+
+if st.sidebar.button("🚪 Sign Out"):
+    try:
+        sign_out_user(st.session_state.supabase_client)
+    finally:
+        st.session_state.clear()
+        st.rerun()    
+
 
 st.title("🥗 SmartPantry AI")
 st.write("Your intelligent kitchen assistant.")
@@ -58,11 +127,11 @@ pantry_tab, scan_tab, safety_tab, recipes_tab, mochi_tab = st.tabs(
 )
 
 if "pantry_manager" not in st.session_state:
-    create_pantry_table()
-
     st.session_state.pantry_manager = PantryManager()
 
-    saved_items = load_pantry_items()
+    saved_items = load_user_pantry(
+        st.session_state.supabase_client
+    )
 
     for item in saved_items:
         st.session_state.pantry_manager.add_item(
@@ -70,6 +139,7 @@ if "pantry_manager" not in st.session_state:
             item["quantity"],
             item["unit"]
         )
+
 
 with pantry_tab:
     st.header("🥕 My Pantry")
@@ -90,24 +160,35 @@ with pantry_tab:
 
     if st.button("➕ Add Ingredient"):
         if ingredient_name.strip():
-            st.session_state.pantry_manager.add_item(
-                ingredient_name,
-                quantity,
-                unit
-            )
+            try:
+                add_pantry_item(
+                    st.session_state.supabase_client,
+                    ingredient_name.strip(),
+                    quantity,
+                    unit
+                )
 
-            save_pantry_item(
-                ingredient_name.strip(),
-                quantity,
-                unit
-            )
+                st.session_state.pantry_manager.add_item(
+                    ingredient_name.strip(),
+                    quantity,
+                    unit
+                )
 
-            st.success(f"{ingredient_name} added to your pantry!")
+                st.success("Ingredient added to your pantry!")
+
+            except Exception:
+                st.error("Unable to save ingredient. Please try again.")
+
         else:
             st.warning("Please enter an ingredient name.")
-        st.subheader("🗑️ Remove Ingredient")
 
-    saved_pantry_items = load_pantry_items()
+    st.subheader("🗑️ Remove Ingredient")
+
+
+
+    saved_pantry_items = load_user_pantry(
+        st.session_state.supabase_client
+    )
 
     if saved_pantry_items:
         selected_item = st.selectbox(
@@ -136,20 +217,30 @@ with pantry_tab:
             )
 
             if st.button("✅ Yes, Delete Ingredient"):
-                deleted = delete_pantry_item(pending_item["id"])
+                try:
+                    deleted = delete_user_pantry_item(
+                        st.session_state.supabase_client,
+                        pending_item["id"]
+                    )
 
-                if deleted:
-                    st.session_state.pantry_manager = PantryManager()
+                    if deleted:
+                        st.session_state.pantry_manager = PantryManager()
 
-                    for item in load_pantry_items():
-                        st.session_state.pantry_manager.add_item(
-                            item["name"],
-                            item["quantity"],
-                            item["unit"]
-                        )
+                        for item in load_user_pantry(
+                            st.session_state.supabase_client
+                        ):
+                            st.session_state.pantry_manager.add_item(
+                                item["name"],
+                                item["quantity"],
+                                item["unit"]
+                            )
+                        st.session_state.pending_delete_id = None
+                        st.rerun()
+                    else:
+                        st.warning("Ingredient was not deleted.")
 
-                st.session_state.pending_delete_id = None
-                st.rerun()
+                except Exception:
+                    st.error("Unable to delete ingredient. Please try again.")
         else:
             st.session_state.pending_delete_id = None
 
@@ -456,21 +547,29 @@ with barcode_column:
             if not confirmed_name.strip():
                 st.warning("Please enter a product name.")
             else:
-                save_pantry_item(
-                    confirmed_name.strip(),
-                    confirmed_quantity,
-                    confirmed_unit
-                )
-
-                st.session_state.pantry_manager = PantryManager()
-
-                for item in load_pantry_items():
-                    st.session_state.pantry_manager.add_item(
-                        item["name"],
-                        item["quantity"],
-                        item["unit"]
+                try:
+                    add_pantry_item(
+                        st.session_state.supabase_client,
+                        confirmed_name.strip(),
+                        confirmed_quantity,
+                        confirmed_unit
                     )
 
+                    st.session_state.pantry_manager = PantryManager()
+
+                    for item in load_user_pantry(
+                        st.session_state.supabase_client
+                    ):
+                        st.session_state.pantry_manager.add_item(
+                            item["name"],
+                            item["quantity"],
+                            item["unit"]
+                        )
+
+                except Exception:
+                    st.error("Unable to save product to your pantry.")
+                    st.stop()
+             
                 st.session_state.identified_barcode_product = None
 
                 st.success(
