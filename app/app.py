@@ -153,7 +153,7 @@ if "pantry_manager" not in st.session_state:
 
 if selected_page == "🏠 Home":
     st.header("🏠 Your Kitchen Dashboard")
-    st.write("Welcome back! Here's what's happening in your kitchen.")
+    st.caption("Your kitchen, organized. Here's what's happening in your pantry today. 🌿")
     
     pantry_items = st.session_state.pantry_manager.get_items()
     total_quantity = sum(item["quantity"] for item in pantry_items)
@@ -218,31 +218,78 @@ if selected_page == "🏠 Home":
     st.subheader("🥕 Your Pantry at a Glance")
 
     if pantry_items:
-        for item in pantry_items:
+        st.caption(
+            f"Showing {min(len(pantry_items), 5)} of {len(pantry_items)} pantry items"
+        )
+
+    if pantry_items:
+        for item in pantry_items[:5]:
             with st.container(border=True):
                 st.write(f"🥕 **{item['name'].title()}**")
                 st.caption(f"Quantity: {item['quantity']} {item['unit']}")
     else:
         st.info("Your pantry is empty. Add your first ingredient!")
 
+    st.button(
+        "View Full Pantry →",
+        use_container_width=True,
+        on_click=lambda: st.session_state.update(
+            main_navigation="🥕 My Pantry"
+        )
+    )
+
 if selected_page == "🥕 My Pantry":
     st.header("🥕 My Pantry")
+    st.caption("Keep track of your ingredients and manage your kitchen inventory.")
+    st.divider()
+
+    st.subheader("📦 Current Inventory")
+
+    inventory_items = load_user_pantry(
+        st.session_state.supabase_client
+    )
+
+    if inventory_items:
+        st.caption(
+            f"You have {len(inventory_items)} pantry "
+            f"{'entry' if len(inventory_items) == 1 else 'entries'}."
+        )
+
+        for item in inventory_items:
+            with st.container(border=True):
+                st.write(f"🥕 **{item['name'].title()}**")
+                st.caption(f"Quantity: {item['quantity']} {item['unit']}")
+    else:
+        st.info("Your pantry is empty. Add your first ingredient below!")
+
+    st.divider()
+
+    st.subheader("➕ Add Ingredient")
+    st.caption("Add a new ingredient to your kitchen inventory.")
 
     ingredient_name = st.text_input("Ingredient name")
 
-    quantity = st.number_input(
-        "Quantity",
-        min_value=1,
-        value=1,
-        step=1
-    )
+    quantity_column, unit_column = st.columns(2, gap="large")
 
-    unit = st.selectbox(
-        "Unit",
-        ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"]
-    )
+    with quantity_column:
+        quantity = st.number_input(
+            "Quantity",
+            min_value=1,
+            value=1,
+            step=1
+        )
 
-    if st.button("➕ Add Ingredient"):
+    with unit_column:
+        unit = st.selectbox(
+            "Unit",
+            ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"]
+        )
+
+    if st.button(
+        "➕ Add Ingredient",
+        type="primary",
+        use_container_width=True
+    ):
         if ingredient_name.strip():
             try:
                 add_pantry_item(
@@ -266,48 +313,109 @@ if selected_page == "🥕 My Pantry":
         else:
             st.warning("Please enter an ingredient name.")
 
-    st.subheader("🗑️ Remove Ingredient")
+    st.divider()
+    st.subheader("⚙️ Manage Ingredients")
+    st.caption("Update quantities or remove ingredients from your pantry.")
+
+    with st.expander("🗑️ Remove Ingredient", expanded=False):
+        st.write("Select an ingredient to remove from your pantry.")
 
 
 
-    saved_pantry_items = load_user_pantry(
-        st.session_state.supabase_client
-    )
-
-    if saved_pantry_items:
-        selected_item = st.selectbox(
-            "Select an ingredient to remove",
-            options=saved_pantry_items,
-            format_func=lambda item: (
-                f"{item['name']} ({item['quantity']} {item['unit']})"
-            ),
+        saved_pantry_items = load_user_pantry(
+            st.session_state.supabase_client
         )
 
-        if st.button("🗑️ Delete Selected Ingredient"):
-            st.session_state.pending_delete_id = selected_item["id"]
-            
-    if st.session_state.get("pending_delete_id") is not None:
-        pending_item = next(
-            (
-                item for item in saved_pantry_items
-                if item["id"] == st.session_state.pending_delete_id
-            ),
-            None
-        )
-
-        if pending_item:
-            st.warning(
-                f"Are you sure you want to delete {pending_item['name']}?"
+        if saved_pantry_items:
+            selected_item = st.selectbox(
+                "Select an ingredient to remove",
+                options=saved_pantry_items,
+                format_func=lambda item: (
+                    f"{item['name']} ({item['quantity']} {item['unit']})"
+                ),
             )
 
-            if st.button("✅ Yes, Delete Ingredient"):
+            if st.button("🗑️ Delete Selected Ingredient"):
+                st.session_state.pending_delete_id = selected_item["id"]
+                
+        if st.session_state.get("pending_delete_id") is not None:
+            pending_item = next(
+                (
+                    item for item in saved_pantry_items
+                    if item["id"] == st.session_state.pending_delete_id
+                ),
+                None
+            )
+
+            if pending_item:
+                st.warning(
+                    f"Are you sure you want to delete {pending_item['name']}?"
+                )
+
+                if st.button("✅ Yes, Delete Ingredient"):
+                    try:
+                        deleted = delete_user_pantry_item(
+                            st.session_state.supabase_client,
+                            pending_item["id"]
+                        )
+
+                        if deleted:
+                            st.session_state.pantry_manager = PantryManager()
+
+                            for item in load_user_pantry(
+                                st.session_state.supabase_client
+                            ):
+                                st.session_state.pantry_manager.add_item(
+                                    item["name"],
+                                    item["quantity"],
+                                    item["unit"]
+                                )
+                            st.session_state.pending_delete_id = None
+                            st.rerun()
+                        else:
+                            st.warning("Ingredient was not deleted.")
+
+                    except Exception:
+                        st.error("Unable to delete ingredient. Please try again.")
+            else:
+                st.session_state.pending_delete_id = None
+
+    with st.expander("✏️ Update Quantity", expanded=False):
+        st.write("Adjust the quantity of an ingredient in your pantry.")
+
+        quantity_items = load_user_pantry(
+            st.session_state.supabase_client
+        )
+
+        if quantity_items:
+            selected_quantity_item = st.selectbox(
+                "Select an ingredient to update",
+                options=quantity_items,
+                format_func=lambda item: (
+                    f"{item['name']} "
+                    f"({item['quantity']} {item['unit']})"
+                    f"[ID: {item['id']}]"
+                ),
+                key="quantity_item_selection"
+            )
+
+            new_quantity = st.number_input(
+                "New quantity",
+                min_value=1,
+                value=int(selected_quantity_item["quantity"]),
+                step=1,
+                key=f"new_quantity_{selected_quantity_item["id"]}"
+            )
+
+            if st.button("💾 Update Quantity"):
                 try:
-                    deleted = delete_user_pantry_item(
+                    updated = update_pantry_item_quantity(
                         st.session_state.supabase_client,
-                        pending_item["id"]
+                        selected_quantity_item["id"],
+                        new_quantity
                     )
 
-                    if deleted:
+                    if updated:
                         st.session_state.pantry_manager = PantryManager()
 
                         for item in load_user_pantry(
@@ -318,72 +426,17 @@ if selected_page == "🥕 My Pantry":
                                 item["quantity"],
                                 item["unit"]
                             )
-                        st.session_state.pending_delete_id = None
+                        st.success("Quantity updated successfully!")
                         st.rerun()
                     else:
-                        st.warning("Ingredient was not deleted.")
+                        st.warning("Quantity was not updated.")
 
                 except Exception:
-                    st.error("Unable to delete ingredient. Please try again.")
+                    st.error("Unable to update quantity. Please try again.")
+
+
         else:
-            st.session_state.pending_delete_id = None
-
-    st.subheader("✏️ Update Quantity")
-
-    quantity_items = load_user_pantry(
-        st.session_state.supabase_client
-    )
-
-    if quantity_items:
-        selected_quantity_item = st.selectbox(
-            "Select an ingredient to update",
-            options=quantity_items,
-            format_func=lambda item: (
-                f"{item['name']} "
-                f"({item['quantity']} {item['unit']})"
-                f"[ID: {item['id']}]"
-            ),
-            key="quantity_item_selection"
-        )
-
-        new_quantity = st.number_input(
-            "New quantity",
-            min_value=1,
-            value=int(selected_quantity_item["quantity"]),
-            step=1,
-            key=f"new_quantity_{selected_quantity_item["id"]}"
-        )
-
-        if st.button("💾 Update Quantity"):
-            try:
-                updated = update_pantry_item_quantity(
-                    st.session_state.supabase_client,
-                    selected_quantity_item["id"],
-                    new_quantity
-                )
-
-                if updated:
-                    st.session_state.pantry_manager = PantryManager()
-
-                    for item in load_user_pantry(
-                        st.session_state.supabase_client
-                    ):
-                        st.session_state.pantry_manager.add_item(
-                            item["name"],
-                            item["quantity"],
-                            item["unit"]
-                        )
-                    st.success("Quantity updated successfully!")
-                    st.rerun()
-                else:
-                    st.warning("Quantity was not updated.")
-
-            except Exception:
-                st.error("Unable to update quantity. Please try again.")
-
-
-    else:
-        st.info("Add an ingredient before updating quantities.")
+            st.info("Add an ingredient before updating quantities.")
 
     pantry_items = st.session_state.pantry_manager.get_items()
 
