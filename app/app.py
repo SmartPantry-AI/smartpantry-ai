@@ -50,6 +50,62 @@ st.set_page_config(
     layout="wide"
 )
 
+def render_mochi_chat():
+    """Display Mochi's chat interface."""
+
+    if "mochi_messages" not in st.session_state:
+        st.session_state.mochi_messages = []
+
+    
+
+    if not st.session_state.mochi_messages:
+        with st.chat_message(
+            "assistant",
+            avatar=str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
+        ):
+            st.markdown(
+                "Hi! I'm Mochi! 🍡💜 Ask me about recipes, "
+                "food storage, or anything happening in your kitchen!"
+            )
+
+    for message in st.session_state.mochi_messages:
+        with st.chat_message(
+            message["role"],
+            avatar=(
+                str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
+                if message["role"] == "assistant"
+                else "👤"
+            )
+        ):
+            st.markdown(message["content"])
+
+    mochi_question = st.chat_input(
+        "Ask Mochi anything about your kitchen...",
+        key="mochi_shared_chat"
+    )
+
+    if mochi_question and mochi_question.strip():
+        st.session_state.mochi_messages.append({
+            "role": "user",
+            "content": mochi_question.strip()
+        })
+
+        with st.spinner("Mochi is thinking..."):
+            mochi_response = ask_ai(
+                mochi_question.strip(),
+                conversation_history=st.session_state.mochi_messages
+            )
+
+        if mochi_response == "Sorry, Mochi is temporarily unavailable.":
+            st.error(mochi_response)
+        else:
+            st.session_state.mochi_messages.append({
+                "role": "assistant",
+                "content": mochi_response
+            })
+
+        st.rerun()
+
 if "supabase_client" not in st.session_state:
     st.session_state.supabase_client = get_supabase_client()
 
@@ -154,89 +210,126 @@ if "pantry_manager" not in st.session_state:
 if selected_page == "🏠 Home":
     st.header("🏠 Your Kitchen Dashboard")
     st.caption("Your kitchen, organized. Here's what's happening in your pantry today. 🌿")
+
+    home_main, home_mochi = st.columns(
+        [2.3, 1],
+        gap="large"
+    )
+
+
+    with home_mochi:
+        st.subheader("🍡 Chat with Mochi")
+        st.caption("Your AI kitchen companion")
     
-    pantry_items = st.session_state.pantry_manager.get_items()
-    total_quantity = sum(item["quantity"] for item in pantry_items)
-    items_column, quantity_column = st.columns(2, gap="large")
+        with st.container(height=450, border=True):
+            render_mochi_chat()
 
-    with items_column:
+    with home_main:
+        pantry_items = st.session_state.pantry_manager.get_items()
+
         with st.container(border=True):
-            st.metric("🥕 Pantry Items", len(pantry_items))
-            st.caption("Items currently in your pantry")
+            welcome_text, welcome_art = st.columns(
+                [2, 1],
+                gap="medium",
+                vertical_alignment="center"
+            )
 
-    with quantity_column:
-        with st.container(border=True):
-            st.metric("📦 Recorded Quantity", total_quantity)
-            st.caption("Combined quantities across all units")
+            with welcome_text:
+                st.subheader("Welcome to your kitchen! 💜")
+                st.write(
+                    "Smarter choices. Less waste. "
+                    "Let's make something great today!"
+                )
 
-    st.divider()
-    st.subheader("⚡ Quick Actions")
+            with welcome_art:
+                st.image(
+                    PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png",
+                    width=180
+                )
 
-    pantry_action, scan_action = st.columns(2, gap="large")
-    safety_action, mochi_action = st.columns(2, gap="large")
+        total_quantity = sum(item["quantity"] for item in pantry_items)
+        items_column, quantity_column = st.columns(2, gap="large")
 
-    with pantry_action:
+        with items_column:
+            with st.container(border=True):
+                st.metric("🥕 Pantry Items", len(pantry_items))
+                st.caption("Items currently in your pantry")
+
+        with quantity_column:
+            with st.container(border=True):
+                st.metric("📦 Recorded Quantity", total_quantity)
+                st.caption("Combined quantities across all units")
+
+        st.divider()
+        st.subheader("⚡ Quick Actions")
+
+        pantry_action, scan_action = st.columns(2, gap="large")
+        safety_action, mochi_action = st.columns(2, gap="large")
+
+        with pantry_action:
+            st.button(
+                "🥕 My Pantry",
+                use_container_width=True,
+                type="primary",
+                on_click=lambda: st.session_state.update(
+                    main_navigation="🥕 My Pantry"
+                )
+            )
+        with scan_action:
+            st.button(
+                "📷 Scan Food",
+                use_container_width=True,
+                type="primary",
+                on_click=lambda: st.session_state.update(
+                    main_navigation="📷 Scan Food"
+                )
+            )
+
+        with safety_action:
+            st.button(
+                "🧊 Food Safety",
+                use_container_width=True,
+                type="primary",
+                on_click=lambda: st.session_state.update(
+                    main_navigation="🧊 Food Safety"
+                )
+            )
+
+        with mochi_action:
+            st.button(
+                "🍡 Mochi AI",
+                use_container_width=True,
+                type="primary",
+                on_click=lambda: st.session_state.update(
+                    main_navigation="🍡 Mochi AI"
+                )
+            )
+        
+        st.divider()
+        st.subheader("🥕 Your Pantry at a Glance")
+
+        if pantry_items:
+            st.caption(
+                f"Showing {min(len(pantry_items), 5)} of {len(pantry_items)} pantry items"
+            )
+
+        if pantry_items:
+            for item in pantry_items[:5]:
+                with st.container(border=True):
+                    st.write(f"🥕 **{item['name'].title()}**")
+                    st.caption(f"Quantity: {item['quantity']} {item['unit']}")
+        else:
+            st.info("Your pantry is empty. Add your first ingredient!")
+
         st.button(
-            "🥕 My Pantry",
+            "View Full Pantry →",
             use_container_width=True,
-            type="primary",
             on_click=lambda: st.session_state.update(
                 main_navigation="🥕 My Pantry"
             )
         )
-    with scan_action:
-        st.button(
-            "📷 Scan Food",
-            use_container_width=True,
-            type="primary",
-            on_click=lambda: st.session_state.update(
-                main_navigation="📷 Scan Food"
-            )
-        )
 
-    with safety_action:
-        st.button(
-            "🧊 Food Safety",
-            use_container_width=True,
-            type="primary",
-            on_click=lambda: st.session_state.update(
-                main_navigation="🧊 Food Safety"
-            )
-        )
-
-    with mochi_action:
-        st.button(
-            "🍡 Mochi AI",
-            use_container_width=True,
-            type="primary",
-            on_click=lambda: st.session_state.update(
-                main_navigation="🍡 Mochi AI"
-            )
-        )
-    
-    st.divider()
-    st.subheader("🥕 Your Pantry at a Glance")
-
-    if pantry_items:
-        st.caption(
-            f"Showing {min(len(pantry_items), 5)} of {len(pantry_items)} pantry items"
-        )
-
-    if pantry_items:
-        for item in pantry_items[:5]:
-            with st.container(border=True):
-                st.write(f"🥕 **{item['name'].title()}**")
-                st.caption(f"Quantity: {item['quantity']} {item['unit']}")
-    else:
-        st.info("Your pantry is empty. Add your first ingredient!")
-
-    st.button(
-        "View Full Pantry →",
-        use_container_width=True,
-        on_click=lambda: st.session_state.update(
-            main_navigation="🥕 My Pantry"
-        )
-    )
+        
 
 if selected_page == "🥕 My Pantry":
     st.header("🥕 My Pantry")
@@ -823,61 +916,28 @@ if selected_page == "🍡 Mochi AI":
     )
     st.divider()
 
-    st.image(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png", width=140)
-    
-    if "mochi_messages" not in st.session_state:
-        st.session_state.mochi_messages = []
+    left_panel, right_panel = st.columns([1.4, 1], gap="large")
+
+    with left_panel:
+        st.image(
+            PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png",
+            width=140
+        )
+
+        st.subheader("Meet Mochi 🍡")
+        st.write(
+            "Your friendly kitchen companion! "
+            "I'm here to help with recipes, food storage, "
+            "and making the most of your pantry."
+        )
 
    
+    with right_panel:
+        st.subheader("💬 Mochi Chat")
+        st.caption("Your kitchen companion is ready to help!")
 
-    if not st.session_state.mochi_messages:
-        with st.chat_message(
-            "assistant",
-            avatar=str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
-        ):
-            st.markdown(
-                "Hi! I'm Mochi! 🍡💜 Ask me about recipes, "
-                "food storage, or anything happening in your kitchen!"
-            )
-
-    for message in st.session_state.mochi_messages:
-        with st.chat_message(
-            message["role"],
-            avatar=(
-                str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
-                if message["role"] == "assistant"
-                else "👤"
-            )
-        ):
-            
-            st.markdown(message["content"])
-
-    mochi_question = st.chat_input(
-        "Ask Mochi anything about your kitchen..."
-    )
-
-    if mochi_question and mochi_question.strip():
-        st.session_state.mochi_messages.append({
-            "role": "user",
-            "content": mochi_question.strip()
-        })
-
-        with st.spinner("Mochi is thinking..."):
-            mochi_response = ask_ai(
-                mochi_question.strip(),
-                conversation_history=st.session_state.mochi_messages
-            )
-
-        if mochi_response == "Sorry, Mochi is temporarily unavailable.":
-            st.error(mochi_response)
-        else:
-            st.session_state.mochi_messages.append({
-                "role": "assistant",
-                "content": mochi_response
-            })
-
-            st.rerun()
-
+        with st.container(height=450, border=True):
+            render_mochi_chat()
 
 
 
