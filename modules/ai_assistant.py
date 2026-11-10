@@ -79,7 +79,7 @@ IMPORTANT:
 
 
 
-def ask_ai(question):
+def ask_ai(question, conversation_history=None):
     try:
         api_key = os.getenv("OPENAI_API_KEY")
 
@@ -88,10 +88,14 @@ def ask_ai(question):
         
         client = OpenAI(api_key=api_key)
 
+        messages = conversation_history if conversation_history is not None else [
+            {"role": "user", "content": question}
+        ]
+
         response = client.responses.create(
             model="gpt-4.1-mini",
             instructions=MOCHI_INSTRUCTIONS,
-            input=question
+            input=messages,
         )
 
         return response.output_text

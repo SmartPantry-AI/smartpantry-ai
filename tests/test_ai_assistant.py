@@ -21,7 +21,9 @@ def test_ask_ai_returns_response():
     mock_create.assert_called_once_with(
         model="gpt-4.1-mini",
         instructions=MOCHI_INSTRUCTIONS,
-        input="What can I cook with spinach?"
+        input=[
+            {"role": "user", "content": "What can I cook with spinach?"}
+        ]
     )
 
 def test_ask_ai_handles_api_error():
@@ -226,5 +228,31 @@ def test_mochi_complete_pantry_addition_workflow():
 
     assert pantry.get_items() == [result]
 
-    
+
+def test_ask_ai_receives_conversation_history():
+    history = [
+        {"role": "user", "content": "How should I store spinach?"},
+        {"role": "assistant", "content": "Keep it refrigerated."},
+        {"role": "user", "content": "Can I freeze it?"}
+    ]
+
+    mock_response = MagicMock()
+    mock_response.output_text = "Yes, you can freeze spinach."
+
+    with patch("modules.ai_assistant.OpenAI") as mock_openai:
+        mock_create = mock_openai.return_value.responses.create
+        mock_create.return_value = mock_response
+
+        result = ask_ai(
+            "Can I freeze it?",
+            conversation_history=history
+        )
+
+        assert result == "Yes, you can freeze spinach."
+
+        mock_create.assert_called_once_with(
+            model="gpt-4.1-mini",
+            instructions=MOCHI_INSTRUCTIONS,
+            input=history
+        )    
         
