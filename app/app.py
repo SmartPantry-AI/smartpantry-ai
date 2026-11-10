@@ -816,22 +816,67 @@ if selected_page == "🍳 Recipes":
         )
 
 if selected_page == "🍡 Mochi AI":
-    st.image(PROJECT_ROOT / "assets" / "mochi_avatar.png", width=140)
-    st.subheader("Meet Mochi, Your AI Kitchen Assistant")
+    st.header("🍡 Chat with Mochi")
+    st.caption(
+        "Your friendly AI kitchen companion for food storage, "
+        "recipes, and pantry questions."
+    )
+    st.divider()
 
-    mochi_question = st.text_input(
-        "Ask Mochi a question",
-        placeholder="Example: How should I store fresh spinach?"
+    st.image(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png", width=140)
+    
+    if "mochi_messages" not in st.session_state:
+        st.session_state.mochi_messages = []
+
+   
+
+    if not st.session_state.mochi_messages:
+        with st.chat_message(
+            "assistant",
+            avatar=str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
+        ):
+            st.markdown(
+                "Hi! I'm Mochi! 🍡💜 Ask me about recipes, "
+                "food storage, or anything happening in your kitchen!"
+            )
+
+    for message in st.session_state.mochi_messages:
+        with st.chat_message(
+            message["role"],
+            avatar=(
+                str(PROJECT_ROOT / "assets" / "mochi_avatar_transparent.png")
+                if message["role"] == "assistant"
+                else "👤"
+            )
+        ):
+            
+            st.markdown(message["content"])
+
+    mochi_question = st.chat_input(
+        "Ask Mochi anything about your kitchen..."
     )
 
-    if st.button("💬 Ask Mochi"):
-        if not mochi_question.strip():
-            st.warning("Please enter a question for Mochi.")
-        else:
-            with st.spinner("Mochi is thinking..."):
-                mochi_response = ask_ai(mochi_question.strip())
+    if mochi_question and mochi_question.strip():
+        st.session_state.mochi_messages.append({
+            "role": "user",
+            "content": mochi_question.strip()
+        })
 
-            st.info(mochi_response)
+        with st.spinner("Mochi is thinking..."):
+            mochi_response = ask_ai(
+                mochi_question.strip(),
+                conversation_history=st.session_state.mochi_messages
+            )
+
+        if mochi_response == "Sorry, Mochi is temporarily unavailable.":
+            st.error(mochi_response)
+        else:
+            st.session_state.mochi_messages.append({
+                "role": "assistant",
+                "content": mochi_response
+            })
+
+            st.rerun()
 
 
 
