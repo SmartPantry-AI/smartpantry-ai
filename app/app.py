@@ -11,7 +11,14 @@ from modules.pantry_manager import PantryManager
 
 from modules.supabase_client import get_supabase_client
 
-from modules.supabase_auth import sign_in_user, sign_out_user
+from modules.supabase_auth import (
+    sign_in_user,
+    sign_out_user,
+    establish_invitation_session,
+    set_invited_user_password,
+)
+
+from app.components.invitation_bridge import render_invitation_bridge
 
 from modules.supabase_pantry import (
     load_user_pantry,
@@ -111,6 +118,87 @@ if "supabase_client" not in st.session_state:
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+
+invitation_result = render_invitation_bridge(
+    invitation_handled=(
+        st.session_state.get("invitation_handled", False)
+        or st.session_state.get("invitation_error", False)
+    )
+)
+
+invitation_status = invitation_result.get("status", {}) if invitation_result else {}
+
+invitation_credentials = (
+    invitation_result.get("invitation_credentials")
+    if invitation_result
+    else None
+)
+
+if (
+    invitation_credentials
+    and not st.session_state.get("invitation_handled", False)
+    and not st.session_state.get("invitation_error", False)
+):
+    try:
+        response = establish_invitation_session(
+            st.session_state.supabase_client,
+            invitation_credentials["access_token"],
+            invitation_credentials["refresh_token"],
+        )
+
+        st.session_state.invitation_handled = True
+        st.session_state.invited_user_id = response.user.id
+        st.session_state.invitation_verified = True
+
+    except Exception:
+        st.session_state.invitation_error = True
+        st.error("Unable to verify this invitation. Please request a new link.")
+
+if invitation_status.get("invitationReady"):
+    st.info("Invitation detected. Verifying your account setup is the next step.")
+
+if st.session_state.get("invitation_verified", False):
+    with st.form("invitation_password_form"):
+        st.subheader("Create your SmartPantry password")
+
+        new_password = st.text_input("New password", type="password")
+        confirm_password = st.text_input("Confirm password", type="password")
+
+        create_password = st.form_submit_button("Create Password")
+
+    if create_password:
+        if len(new_password) < 8:
+            st.error("Password must be at least 8 characters long.")
+        elif new_password != confirm_password:
+            st.error("Passwords do not match.")
+        else:
+            try:
+                user_response = st.session_state.supabase_client.auth.get_user()
+
+                if (
+                    user_response.user is None
+                    or user_response.user.id != st.session_state.get("invited_user_id")
+                ):
+                    st.error("Your invitation session is no longer valid.")
+                else:
+                    set_invited_user_password(
+                        st.session_state.supabase_client,
+                        new_password,
+                    )
+                    st.session_state.password_created = True
+                    st.success("Password created successfully!")
+
+                    st.session_state.authenticated = True
+                    st.session_state.user_id = st.session_state.invited_user_id
+                    st.session_state.invitation_verified = False
+                    st.rerun()
+
+            except Exception:
+                st.error("Unable to create your password. Please try again.")
+
+    st.stop()
+
+
 
 if st.session_state.authenticated:
     try:
