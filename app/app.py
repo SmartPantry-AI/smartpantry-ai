@@ -497,7 +497,7 @@ if selected_page == "🥕 My Pantry":
                 min_value=1,
                 value=int(selected_quantity_item["quantity"]),
                 step=1,
-                key=f"new_quantity_{selected_quantity_item["id"]}"
+                key=f"new_quantity_{selected_quantity_item['id']}"
             )
 
             if st.button("💾 Update Quantity"):
