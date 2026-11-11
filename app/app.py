@@ -4,6 +4,9 @@
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
 from modules.pantry_manager import PantryManager
 
 from modules.supabase_client import get_supabase_client
@@ -16,9 +19,6 @@ from modules.supabase_pantry import (
     delete_user_pantry_item,
     update_pantry_item_quantity,
 )
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
 
 import streamlit as st
 
