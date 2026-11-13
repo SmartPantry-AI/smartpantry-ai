@@ -33,8 +33,9 @@ def render_invitation_bridge(invitation_handled=False):
                 component.setStateValue("invitation_credentials", invitationCredentials);
             }
 
-            if (invitationReady && invitationAlreadyHandled) {
+            if (invitationAlreadyHandled) {
                 clearInvitationUrl();
+                component.setStateValue("invitation_credentials", null);
             }
 
             const runningInIframe = window.self !== window.top;

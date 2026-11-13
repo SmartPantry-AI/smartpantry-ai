@@ -18,7 +18,7 @@ from modules.supabase_auth import (
     set_invited_user_password,
 )
 
-from app.components.invitation_bridge import render_invitation_bridge
+from components.invitation_bridge import render_invitation_bridge
 
 from modules.supabase_pantry import (
     load_user_pantry,
