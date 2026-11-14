@@ -17,6 +17,15 @@ FOODKEEPER_DATA_PATH = (
     / "foodkeeper_produce_dairy_shelf_life_clean.csv"
 )
 
+OSU_DATA_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "processed"
+    / "osu_extension_storage_rules_15.csv"
+)
+
+
+
 def load_storage_rules(path=DATA_PATH):
     with open(path, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
@@ -70,6 +79,29 @@ def load_foodkeeper_rules(path=FOODKEEPER_DATA_PATH):
         raise ValueError("Empty FoodKeeper dataset")
     return rows
 
+
+def load_osu_rules(path=OSU_DATA_PATH):
+    """Load and validate cleaned OSU Extension storage data."""
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {
+            "source_record_id",
+            "food_type",
+            "storage_location",
+            "refrigerator_min_days",
+            "refrigerator_max_days",
+            "duration_basis",
+            "prototype_supported",
+            "source_url",
+        }
+        if not required.issubset(reader.fieldnames or []):
+            raise ValueError("Missing required OSU Extension columns")
+        rows = list(reader)
+
+    if not rows:
+        raise ValueError("Empty OSU Extension dataset")
+    return rows
+
 def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
     """Find a FoodKeeper record using explicitly supported names."""
     if foodkeeper_rules is None:
@@ -106,12 +138,17 @@ def adapt_pantry_item(pantry_item):
     if isinstance(purchase_date, date):
         purchase_date = purchase_date.isoformat()
 
+    prepared_date = pantry_item.get("prepared_date")
+
+    if isinstance(prepared_date, date):
+        prepared_date = prepared_date.isoformat()    
+
     return {
         "item_id": pantry_item["id"],
         "food_type": pantry_item["name"],
         "storage_location": pantry_item.get("storage_location"),
         "purchase_date": purchase_date,
-        "prepared_date": None,
+        "prepared_date": prepared_date,
     }
 
 

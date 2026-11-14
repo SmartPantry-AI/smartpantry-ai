@@ -8,6 +8,7 @@ from modules.storage_guidance import (
     evaluate_leftovers,
     evaluate_foodkeeper,
     adapt_pantry_item,
+    load_osu_rules,
 )
 
 
@@ -324,6 +325,62 @@ class TestStorage(unittest.TestCase):
         self.assertEqual(result["use_priority"], "UNKNOWN")
         self.assertIsNone(result["recommended_use_date"])
         self.assertEqual(result["reason"], "Prepared date is required.")
+
+
+
+
+    def test_adapt_pantry_item_with_leftovers_prepared_date(self):
+        """Verify that a saved preparation date produces a leftovers reminder."""
+
+        pantry_item = {
+            "id": 46,
+            "name": "Cooked meat or poultry",
+            "storage_location": "REFRIGERATOR",
+            "purchase_date": None,
+            "prepared_date": "2026-11-13",
+        }
+
+        adapted_item = adapt_pantry_item(pantry_item)
+
+        result = evaluate_leftovers(
+            adapted_item,
+            as_of=date(2026, 11, 14),
+        )
+
+        self.assertEqual(adapted_item["prepared_date"], "2026-11-13")
+        self.assertEqual(result["recommended_use_date"], "2026-11-16")
+        self.assertEqual(result["days_remaining"], 2)
+        self.assertEqual(result["use_priority"], "HIGH")
+        self.assertIsNotNone(result["source"])
+
+
+
+    def test_osu_dataset(self):
+        """Verify the OSU Extension dataset loads all 15 records."""
+        rules = load_osu_rules()
+
+        self.assertEqual(len(rules), 15)
+
+        required_fields = {
+            "source_record_id",
+            "food_type",
+            "storage_location",
+            "refrigerator_min_days",
+            "refrigerator_max_days",
+            "duration_basis",
+            "prototype_supported",
+            "source_url",
+        }
+
+        for rule in rules:
+            self.assertTrue(
+                required_fields.issubset(rule.keys()),
+                f"Missing required fields in {rule.get('source_record_id')}",
+            )
+            self.assertEqual(
+                rule["prototype_supported"].strip().lower(),
+                "false",
+            )
 
 if __name__ == "__main__":
     unittest.main()
