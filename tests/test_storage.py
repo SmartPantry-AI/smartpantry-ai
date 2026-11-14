@@ -34,6 +34,29 @@ class TestStorage(unittest.TestCase):
             (2, "HIGH"),
         )
 
+    def test_leftovers_case_insensitive(self):
+        for food_name in [
+            "Cooked meat or poultry",
+            "Cooked Meat Or Poultry",
+            "cooked meat or poultry",
+        ]:
+            with self.subTest(food_name=food_name):
+                result = evaluate_leftovers(
+                    {
+                        "item_id": "case-test",
+                        "food_type": food_name,
+                        "storage_location": "REFRIGERATOR",
+                        "prepared_date": "2026-10-12",
+                    },
+                    as_of=date(2026, 10, 13),
+                )
+
+                self.assertEqual(
+                    (result["days_remaining"], result["use_priority"]),
+                    (2, "HIGH"),
+                )
+
+
     def test_foodsafety_chicken_rule(self):
         rules = load_storage_rules()
 
