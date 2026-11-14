@@ -25,7 +25,15 @@ import streamlit as st
 from modules.image_recognition import recognize_food
 import tempfile
 from datetime import date
-from modules.storage_guidance import evaluate_foodkeeper
+
+from modules.storage_guidance import (
+    adapt_pantry_item,
+    evaluate_foodkeeper,
+    evaluate_leftovers,
+    find_osu_rule,
+)
+
+
 from modules.recall_checker import get_fda_recalls
 from modules.recipe_recommender import (
     rank_recall_checked_recipes,
@@ -338,6 +346,13 @@ if selected_page == "🥕 My Pantry":
 
     st.subheader("📦 Current Inventory")
 
+    st.caption(
+        "ℹ️ Storage guidance and use-soon reminders are informational "
+        "estimates, not guarantees of food safety. Follow package "
+        "instructions and official food-safety recommendations. "
+        "When in doubt, throw it out."
+    )
+
     inventory_items = load_user_pantry(
         st.session_state.supabase_client
     )
@@ -352,15 +367,141 @@ if selected_page == "🥕 My Pantry":
             with st.container(border=True):
                 st.write(f"🥕 **{item['name'].title()}**")
                 st.caption(f"Quantity: {item['quantity']} {item['unit']}")
+
+                storage_labels = {
+                    "REFRIGERATOR": "Refrigerator",
+                    "FREEZER": "Freezer",
+                    "PANTRY": "Pantry / room temperature",
+                }
+
+                storage_location = item.get("storage_location")
+
+                if storage_location:
+                    st.caption(
+                        f"📦 Stored in: {storage_labels.get(storage_location, storage_location)}"
+                    )
+
+                if item.get("purchase_date"):
+                    st.caption(f"📅 Purchased: {item['purchase_date']}")
+
+                if item.get("expiration_date"):
+                    st.caption(f"🏷️ Package expiration / use-by: {item['expiration_date']}")
+
+                adapted_item = adapt_pantry_item(item)
+
+                foodkeeper_result = evaluate_foodkeeper(
+                    adapted_item,
+                    as_of=date.today(),
+                )
+
+                if foodkeeper_result["recommended_use_date"]:
+                    st.caption(
+                        f"🌱 FoodKeeper use-soon reminder: "
+                        f"{foodkeeper_result['recommended_use_date']}"
+                    )
+                    st.caption(
+                        f"Priority: {foodkeeper_result['use_priority']}"
+                    )
+                    
+                    if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
+                        st.warning("⚠️ FoodKeeper reminder is overdue.")
+                    elif foodkeeper_result["reminder_status"] == "TODAY":
+                        st.info("📅 FoodKeeper reminder is due today.")
+
+                    if foodkeeper_result["source"]:
+                        st.caption(
+                            f"Source: {foodkeeper_result['source']}"
+                        )
+
+                leftovers_result = evaluate_leftovers(
+                    adapted_item,
+                    as_of=date.today(),
+                )
+
+                if leftovers_result["recommended_use_date"]:
+                    st.caption(
+                        f"🧊 FoodSafety.gov use-soon reminder: "
+                        f"{leftovers_result['recommended_use_date']}"
+                    )
+                    st.caption(
+                        f"Priority: {leftovers_result['use_priority']}"
+                    )
+
+                    if leftovers_result["reminder_status"] == "PAST_REMINDER":
+                        st.warning("⚠️ FoodSafety.gov reminder is overdue.")
+                    elif leftovers_result["reminder_status"] == "TODAY":
+                        st.info("📅 FoodSafety.gov reminder is due today.")
+
+                    if leftovers_result["source"]:
+                        st.caption(
+                            f"Source: {leftovers_result['source']}"
+                        )
+
+                osu_rule = find_osu_rule(item["name"])
+
+                if (
+                    osu_rule is not None
+                    and storage_location == osu_rule["storage_location"]
+                ):
+                    st.caption(
+                        f"🌿 OSU Extension storage guidance: "
+                        f"{osu_rule['duration_raw']}"
+                    )
+                    st.caption(
+                        f"Recommended temperature: "
+                        f"{osu_rule['storage_temperature_raw']}"
+                    )
+                    st.caption(
+                        "Approximate storage time for best quality; "
+                        "not a calculated expiration date."
+                    )
+                    st.caption(
+                        f"Source: {osu_rule['source_url']}"
+                    )
+
     else:
         st.info("Your pantry is empty. Add your first ingredient below!")
 
     st.divider()
 
+    if st.session_state.pop("reset_manual_entry", False):
+        st.session_state["manual_ingredient_name"] = ""
+        st.session_state["manual_quantity"] = 1
+        st.session_state["manual_unit"] = "item"
+        st.session_state["manual_purchase_date"] = None
+        st.session_state["manual_expiration_date"] = None
+        st.session_state["manual_storage_location"] = ""
+        st.session_state["manual_food_classification"] = "Regular ingredient"
+        st.session_state["manual_prepared_date"] = None
+
+    if st.session_state.pop("manual_entry_success", False):
+        st.success("Ingredient added to your pantry successfully!")
+
+
     st.subheader("➕ Add Ingredient")
     st.caption("Add a new ingredient to your kitchen inventory.")
 
-    ingredient_name = st.text_input("Ingredient name")
+    ingredient_name = st.text_input(
+        "Ingredient name",
+        key="manual_ingredient_name",
+    )
+
+    food_classification = st.selectbox(
+        "Food classification",
+        options=["Regular ingredient", "Cooked food / leftovers"],
+        key="manual_food_classification",
+    )
+
+    prepared_date = None
+
+    if food_classification == "Cooked food / leftovers":
+        prepared_date = st.date_input(
+            "Date prepared",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="manual_prepared_date",
+        )
 
     quantity_column, unit_column = st.columns(2, gap="large")
 
@@ -369,14 +510,44 @@ if selected_page == "🥕 My Pantry":
             "Quantity",
             min_value=1,
             value=1,
-            step=1
+            step=1,
+            key="manual_quantity"
         )
 
     with unit_column:
         unit = st.selectbox(
             "Unit",
-            ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"]
+            ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
+            key="manual_unit",
         )
+
+    st.caption("Optional dates for storage reminders")
+
+    purchase_date = st.date_input(
+        "Purchase date",
+        value=None,
+        format="MM/DD/YYYY",
+        key="manual_purchase_date",
+    )
+
+    expiration_date = st.date_input(
+        "Package expiration / use-by date",
+        value=None,
+        format="MM/DD/YYYY",
+        key="manual_expiration_date",
+    )
+
+    storage_location = st.selectbox(
+        "Storage location",
+        options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+        format_func=lambda value: {
+            "": "Select storage location",
+            "REFRIGERATOR": "Refrigerator",
+            "FREEZER": "Freezer",
+            "PANTRY": "Pantry / room temperature",
+        }[value],
+        key="manual_storage_location",
+    )
 
     if st.button(
         "➕ Add Ingredient",
@@ -389,7 +560,11 @@ if selected_page == "🥕 My Pantry":
                     st.session_state.supabase_client,
                     ingredient_name.strip(),
                     quantity,
-                    unit
+                    unit,
+                    purchase_date=purchase_date.isoformat() if purchase_date else None,
+                    expiration_date=expiration_date.isoformat() if expiration_date else None,
+                    storage_location=storage_location or None,
+                    prepared_date=prepared_date.isoformat() if prepared_date else None,
                 )
 
                 st.session_state.pantry_manager.add_item(
@@ -398,7 +573,9 @@ if selected_page == "🥕 My Pantry":
                     unit
                 )
 
-                st.success("Ingredient added to your pantry!")
+                st.session_state["manual_entry_success"] = True
+                st.session_state["reset_manual_entry"] = True
+                st.rerun()
 
             except Exception:
                 st.error("Unable to save ingredient. Please try again.")
