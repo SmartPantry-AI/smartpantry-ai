@@ -308,7 +308,7 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
     }
 
     if (
-        item.get("food_type") != "Cooked meat or poultry"
+        str(item.get("food_type") or "").strip().casefold() != "cooked meat or poultry"
         or item.get("storage_location") != "REFRIGERATOR"
     ):
         result["reason"] = "Food or storage is unsupported by this rule."
