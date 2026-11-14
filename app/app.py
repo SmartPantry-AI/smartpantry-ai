@@ -25,9 +25,12 @@ import streamlit as st
 from modules.image_recognition import recognize_food
 import tempfile
 from datetime import date
+
 from modules.storage_guidance import (
     adapt_pantry_item,
     evaluate_foodkeeper,
+    evaluate_leftovers,
+    find_osu_rule,
 )
 
 
@@ -392,6 +395,41 @@ if selected_page == "🥕 My Pantry":
                     st.caption(
                         f"Priority: {foodkeeper_result['use_priority']}"
                     )
+                leftovers_result = evaluate_leftovers(
+                    adapted_item,
+                    as_of=date.today(),
+                )
+
+                if leftovers_result["recommended_use_date"]:
+                    st.caption(
+                        f"🧊 FoodSafety.gov use-soon reminder: "
+                        f"{leftovers_result['recommended_use_date']}"
+                    )
+                    st.caption(
+                        f"Priority: {leftovers_result['use_priority']}"
+                    )
+
+                osu_rule = find_osu_rule(item["name"])
+
+                if (
+                    osu_rule is not None
+                    and storage_location == osu_rule["storage_location"]
+                ):
+                    st.caption(
+                        f"🌿 OSU Extension storage guidance: "
+                        f"{osu_rule['duration_raw']}"
+                    )
+                    st.caption(
+                        f"Recommended temperature: "
+                        f"{osu_rule['storage_temperature_raw']}"
+                    )
+                    st.caption(
+                        "Approximate storage time for best quality; "
+                        "not a calculated expiration date."
+                    )
+                    st.caption(
+                        f"Source: {osu_rule['source_url']}"
+                    )
 
     else:
         st.info("Your pantry is empty. Add your first ingredient below!")
@@ -405,6 +443,8 @@ if selected_page == "🥕 My Pantry":
         st.session_state["manual_purchase_date"] = None
         st.session_state["manual_expiration_date"] = None
         st.session_state["manual_storage_location"] = ""
+        st.session_state["manual_food_classification"] = "Regular ingredient"
+        st.session_state["manual_prepared_date"] = None
 
     if st.session_state.pop("manual_entry_success", False):
         st.success("Ingredient added to your pantry successfully!")
@@ -417,6 +457,23 @@ if selected_page == "🥕 My Pantry":
         "Ingredient name",
         key="manual_ingredient_name",
     )
+
+    food_classification = st.selectbox(
+        "Food classification",
+        options=["Regular ingredient", "Cooked food / leftovers"],
+        key="manual_food_classification",
+    )
+
+    prepared_date = None
+
+    if food_classification == "Cooked food / leftovers":
+        prepared_date = st.date_input(
+            "Date prepared",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="manual_prepared_date",
+        )
 
     quantity_column, unit_column = st.columns(2, gap="large")
 
@@ -479,6 +536,7 @@ if selected_page == "🥕 My Pantry":
                     purchase_date=purchase_date.isoformat() if purchase_date else None,
                     expiration_date=expiration_date.isoformat() if expiration_date else None,
                     storage_location=storage_location or None,
+                    prepared_date=prepared_date.isoformat() if prepared_date else None,
                 )
 
                 st.session_state.pantry_manager.add_item(
