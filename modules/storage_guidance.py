@@ -102,6 +102,21 @@ def load_osu_rules(path=OSU_DATA_PATH):
         raise ValueError("Empty OSU Extension dataset")
     return rows
 
+def find_osu_rule(food_name, osu_rules=None):
+    """Find an OSU Extension rule using an exact food name."""
+    if osu_rules is None:
+        osu_rules = load_osu_rules()
+
+    normalized_name = food_name.strip().lower()
+
+    return next(
+        (
+            rule for rule in osu_rules
+            if rule["food_type"].strip().lower() == normalized_name
+        ),
+        None,
+    )
+
 def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
     """Find a FoodKeeper record using explicitly supported names."""
     if foodkeeper_rules is None:

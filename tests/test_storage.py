@@ -9,6 +9,7 @@ from modules.storage_guidance import (
     evaluate_foodkeeper,
     adapt_pantry_item,
     load_osu_rules,
+    find_osu_rule,
 )
 
 
@@ -381,6 +382,21 @@ class TestStorage(unittest.TestCase):
                 rule["prototype_supported"].strip().lower(),
                 "false",
             )
+
+
+    def test_find_osu_rule(self):
+        """Verify exact, case-insensitive OSU food matching."""
+        asparagus = find_osu_rule("ASPARAGUS")
+
+        self.assertIsNotNone(asparagus)
+        self.assertEqual(asparagus["food_type"], "Asparagus")
+        self.assertEqual(
+            asparagus["source_record_id"],
+            "OSU-PNW612-001",
+        )
+
+        self.assertIsNone(find_osu_rule("broccoli"))
+        self.assertIsNone(find_osu_rule("unknown food"))
 
 if __name__ == "__main__":
     unittest.main()
