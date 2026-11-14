@@ -395,6 +395,12 @@ if selected_page == "🥕 My Pantry":
                     st.caption(
                         f"Priority: {foodkeeper_result['use_priority']}"
                     )
+                    
+                    if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
+                        st.warning("⚠️ FoodKeeper reminder is overdue.")
+                    elif foodkeeper_result["reminder_status"] == "TODAY":
+                        st.info("📅 FoodKeeper reminder is due today.")
+
                 leftovers_result = evaluate_leftovers(
                     adapted_item,
                     as_of=date.today(),
@@ -408,6 +414,11 @@ if selected_page == "🥕 My Pantry":
                     st.caption(
                         f"Priority: {leftovers_result['use_priority']}"
                     )
+
+                    if leftovers_result["reminder_status"] == "PAST_REMINDER":
+                        st.warning("⚠️ FoodSafety.gov reminder is overdue.")
+                    elif leftovers_result["reminder_status"] == "TODAY":
+                        st.info("📅 FoodSafety.gov reminder is due today.")
 
                 osu_rule = find_osu_rule(item["name"])
 
