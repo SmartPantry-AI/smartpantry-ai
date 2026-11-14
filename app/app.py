@@ -346,6 +346,13 @@ if selected_page == "🥕 My Pantry":
 
     st.subheader("📦 Current Inventory")
 
+    st.caption(
+        "ℹ️ Storage guidance and use-soon reminders are informational "
+        "estimates, not guarantees of food safety. Follow package "
+        "instructions and official food-safety recommendations. "
+        "When in doubt, throw it out."
+    )
+
     inventory_items = load_user_pantry(
         st.session_state.supabase_client
     )
@@ -401,6 +408,11 @@ if selected_page == "🥕 My Pantry":
                     elif foodkeeper_result["reminder_status"] == "TODAY":
                         st.info("📅 FoodKeeper reminder is due today.")
 
+                    if foodkeeper_result["source"]:
+                        st.caption(
+                            f"Source: {foodkeeper_result['source']}"
+                        )
+
                 leftovers_result = evaluate_leftovers(
                     adapted_item,
                     as_of=date.today(),
@@ -419,6 +431,11 @@ if selected_page == "🥕 My Pantry":
                         st.warning("⚠️ FoodSafety.gov reminder is overdue.")
                     elif leftovers_result["reminder_status"] == "TODAY":
                         st.info("📅 FoodSafety.gov reminder is due today.")
+
+                    if leftovers_result["source"]:
+                        st.caption(
+                            f"Source: {leftovers_result['source']}"
+                        )
 
                 osu_rule = find_osu_rule(item["name"])
 
