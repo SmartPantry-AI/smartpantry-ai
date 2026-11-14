@@ -9,7 +9,15 @@ def load_user_pantry(client):
 
     return response.data
 
-def add_pantry_item(client, name, quantity, unit):
+def add_pantry_item(
+    client,
+    name,
+    quantity,
+    unit,
+    purchase_date=None,
+    expiration_date=None,
+    storage_location=None,
+):
     """Save a pantry item for the authenticated user."""
 
     user_response = client.auth.get_user()
@@ -20,6 +28,10 @@ def add_pantry_item(client, name, quantity, unit):
         "name": name,
         "quantity": quantity,
         "unit": unit,
+        "purchase_date": purchase_date,
+        "expiration_date": expiration_date,
+        "storage_location": storage_location,
+        
     }
 
     response = (

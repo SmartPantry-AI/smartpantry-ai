@@ -57,6 +57,9 @@ def test_add_pantry_item():
         "name": "Apple",
         "quantity": 2,
         "unit": "item",
+        "purchase_date": None,
+        "expiration_date": None,
+        "storage_location": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -71,6 +74,41 @@ def test_add_pantry_item():
 
     assert result == [expected_item]
 
+
+def test_add_pantry_item_with_dates():
+    """Verify that provided dates are included in the database insert."""
+
+    mock_client = MagicMock()
+    mock_client.auth.get_user.return_value.user.id = "test-user-123"
+
+    expected_item = {
+        "user_id": "test-user-123",
+        "name": "Apple",
+        "quantity": 2,
+        "unit": "item",
+        "purchase_date": "2026-11-10",
+        "expiration_date": "2026-11-24",
+        "storage_location": None,
+    }
+
+    mock_client.table.return_value.insert.return_value.execute.return_value.data = [
+        expected_item
+    ]
+
+    result = add_pantry_item(
+        mock_client,
+        "Apple",
+        2,
+        "item",
+        purchase_date="2026-11-10",
+        expiration_date="2026-11-24",
+    )
+
+    mock_client.auth.get_user.assert_called_once_with()
+    mock_client.table.assert_called_once_with("pantry_items")
+    mock_client.table.return_value.insert.assert_called_once_with(expected_item)
+
+    assert result == [expected_item]
 
 def test_add_pantry_item_database_error():
     """Verify that database errors are not silently ignored."""
@@ -177,4 +215,32 @@ def test_update_pantry_item_quantity_not_accessible():
         "id", 999
     )
     
-        
+def test_add_pantry_item_with_storage_location():
+    client = MagicMock()
+    client.auth.get_user.return_value.user.id = "test-user"
+
+    expected_item = {
+        "user_id": "test-user",
+        "name": "Apple",
+        "quantity": 2,
+        "unit": "item",
+        "purchase_date": None,
+        "expiration_date": None,
+        "storage_location": "REFRIGERATOR",
+    }
+
+    client.table.return_value.insert.return_value.execute.return_value.data = [
+        expected_item
+    ]
+
+    result = add_pantry_item(
+        client,
+        "Apple",
+        2,
+        "item",
+        storage_location="REFRIGERATOR",
+    )
+
+    client.table.assert_called_once_with("pantry_items")
+    client.table.return_value.insert.assert_called_once_with(expected_item)
+    assert result == [expected_item]       

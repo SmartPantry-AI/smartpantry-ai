@@ -20,13 +20,36 @@ FOODKEEPER_DATA_PATH = (
 def load_storage_rules(path=DATA_PATH):
     with open(path, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
-        required = {"source_record_id", "refrigerator_min_days", "source_url"}
+        
+        required = {
+            "source_record_id",
+            "food_type",
+            "storage_location",
+            "refrigerator_min_days",
+            "refrigerator_max_days",
+            "duration_condition",
+            "source_url",
+        }
+
         if not required.issubset(reader.fieldnames or []):
             raise ValueError("Missing required storage columns")
         rows = list(reader)
     if not rows: raise ValueError("Empty storage dataset")
 
     return rows
+
+def find_foodsafety_rule(record_id, storage_rules=None):
+    """Find a FoodSafety.gov rule by its official record ID."""
+    if storage_rules is None:
+        storage_rules = load_storage_rules()
+
+    return next(
+        (
+            rule for rule in storage_rules
+            if rule["source_record_id"] == record_id
+        ),
+        None,
+    )
 
 def load_foodkeeper_rules(path=FOODKEEPER_DATA_PATH):
     """Load and validate cleaned FoodKeeper storage data."""
@@ -74,6 +97,23 @@ def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
         ),
         None,
     )
+
+
+def adapt_pantry_item(pantry_item):
+    """Convert a Supabase pantry record into a storage evaluator input."""
+    purchase_date = pantry_item.get("purchase_date")
+
+    if isinstance(purchase_date, date):
+        purchase_date = purchase_date.isoformat()
+
+    return {
+        "item_id": pantry_item["id"],
+        "food_type": pantry_item["name"],
+        "storage_location": pantry_item.get("storage_location"),
+        "purchase_date": purchase_date,
+        "prepared_date": None,
+    }
+
 
 def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
     """Evaluate FoodKeeper guidance without guessing missing dates."""
@@ -236,9 +276,11 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         result["reason"] = "Prepared date is in the future; confirm it."
         return result
 
-    if storage_rules is None:
-        storage_rules = load_storage_rules()
-    supported_rule = next((r for r in storage_rules if r["source_record_id"] == "FS-COLD-020"), None)
+    supported_rule = find_foodsafety_rule(
+        "FS-COLD-020",
+        storage_rules=storage_rules,
+    )
+    
     if supported_rule is None:
         raise ValueError("Missing FS-COLD-020")
     reminder = prepared + timedelta(
