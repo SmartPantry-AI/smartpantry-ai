@@ -17,6 +17,7 @@ def add_pantry_item(
     purchase_date=None,
     expiration_date=None,
     storage_location=None,
+    prepared_date=None,
 ):
     """Save a pantry item for the authenticated user."""
 
@@ -31,6 +32,7 @@ def add_pantry_item(
         "purchase_date": purchase_date,
         "expiration_date": expiration_date,
         "storage_location": storage_location,
+        "prepared_date": prepared_date,
         
     }
 

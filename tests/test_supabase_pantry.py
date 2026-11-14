@@ -60,6 +60,7 @@ def test_add_pantry_item():
         "purchase_date": None,
         "expiration_date": None,
         "storage_location": None,
+        "prepared_date": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -89,6 +90,7 @@ def test_add_pantry_item_with_dates():
         "purchase_date": "2026-11-10",
         "expiration_date": "2026-11-24",
         "storage_location": None,
+        "prepared_date": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -107,6 +109,42 @@ def test_add_pantry_item_with_dates():
     mock_client.auth.get_user.assert_called_once_with()
     mock_client.table.assert_called_once_with("pantry_items")
     mock_client.table.return_value.insert.assert_called_once_with(expected_item)
+
+    assert result == [expected_item]
+
+
+def test_add_pantry_item_with_prepared_date():
+    """Verify that a preparation date is included in the database insert."""
+
+    client = MagicMock()
+    client.auth.get_user.return_value.user.id = "test-user-123"
+
+    expected_item = {
+        "user_id": "test-user-123",
+        "name": "Cooked meat or poultry",
+        "quantity": 1,
+        "unit": "item",
+        "purchase_date": None,
+        "expiration_date": None,
+        "storage_location": "REFRIGERATOR",
+        "prepared_date": "2026-11-13",
+    }
+
+    client.table.return_value.insert.return_value.execute.return_value.data = [
+        expected_item
+    ]
+
+    result = add_pantry_item(
+        client,
+        "Cooked meat or poultry",
+        1,
+        "item",
+        storage_location="REFRIGERATOR",
+        prepared_date="2026-11-13",
+    )
+
+    client.table.assert_called_once_with("pantry_items")
+    client.table.return_value.insert.assert_called_once_with(expected_item)
 
     assert result == [expected_item]
 
@@ -227,6 +265,7 @@ def test_add_pantry_item_with_storage_location():
         "purchase_date": None,
         "expiration_date": None,
         "storage_location": "REFRIGERATOR",
+        "prepared_date": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
