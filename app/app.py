@@ -10,6 +10,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from modules.pantry_manager import PantryManager
 
 from modules.supabase_client import get_supabase_client
+from modules.pantry_grouping import group_pantry_items
 
 from modules.supabase_auth import sign_in_user, sign_out_user
 
@@ -35,6 +36,7 @@ from modules.storage_guidance import (
 
 
 from modules.recall_checker import get_fda_recalls
+
 from modules.recipe_recommender import (
     rank_recall_checked_recipes,
     fetch_spoonacular_recipes,
@@ -50,6 +52,104 @@ from modules.recipe_recommender import (
 from modules.ai_assistant import ask_ai
 
 from modules.barcode_lookup import identify_product
+
+
+def render_pantry_batch(item):
+    """Display one pantry record and its storage guidance."""
+
+    st.caption(f"📦 Batch quantity: {item['quantity']} {item['unit']}")
+
+    storage_labels = {
+        "REFRIGERATOR": "Refrigerator",
+        "FREEZER": "Freezer",
+        "PANTRY": "Pantry / room temperature",
+    }
+
+    storage_location = item.get("storage_location")
+
+    if storage_location:
+        st.caption(
+            f"📦 Stored in: {storage_labels.get(storage_location, storage_location)}"
+        )
+
+    if item.get("purchase_date"):
+        st.caption(f"📅 Purchased: {item['purchase_date']}")
+
+    if item.get("expiration_date"):
+        st.caption(f"🏷️ Package expiration / use-by: {item['expiration_date']}")
+
+    adapted_item = adapt_pantry_item(item)
+
+    foodkeeper_result = evaluate_foodkeeper(
+        adapted_item,
+        as_of=date.today(),
+    )
+
+    if foodkeeper_result["recommended_use_date"]:
+        st.caption(
+            f"🌱 FoodKeeper use-soon reminder: "
+            f"{foodkeeper_result['recommended_use_date']}"
+        )
+        st.caption(
+            f"Priority: {foodkeeper_result['use_priority']}"
+        )
+        
+        if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
+            st.warning("⚠️ FoodKeeper reminder is overdue.")
+        elif foodkeeper_result["reminder_status"] == "TODAY":
+            st.info("📅 FoodKeeper reminder is due today.")
+
+        if foodkeeper_result["source"]:
+            st.caption(
+                f"Source: {foodkeeper_result['source']}"
+            )
+
+    leftovers_result = evaluate_leftovers(
+        adapted_item,
+        as_of=date.today(),
+    )
+
+    if leftovers_result["recommended_use_date"]:
+        st.caption(
+            f"🧊 FoodSafety.gov use-soon reminder: "
+            f"{leftovers_result['recommended_use_date']}"
+        )
+        st.caption(
+            f"Priority: {leftovers_result['use_priority']}"
+        )
+
+        if leftovers_result["reminder_status"] == "PAST_REMINDER":
+            st.warning("⚠️ FoodSafety.gov reminder is overdue.")
+        elif leftovers_result["reminder_status"] == "TODAY":
+            st.info("📅 FoodSafety.gov reminder is due today.")
+
+        if leftovers_result["source"]:
+            st.caption(
+                f"Source: {leftovers_result['source']}"
+            )
+
+    osu_rule = find_osu_rule(item["name"])
+
+    if (
+        osu_rule is not None
+        and storage_location == osu_rule["storage_location"]
+    ):
+        st.caption(
+            f"🌿 OSU Extension storage guidance: "
+            f"{osu_rule['duration_raw']}"
+        )
+        st.caption(
+            f"Recommended temperature: "
+            f"{osu_rule['storage_temperature_raw']}"
+        )
+        st.caption(
+            "Approximate storage time for best quality; "
+            "not a calculated expiration date."
+        )
+        st.caption(
+            f"Source: {osu_rule['source_url']}"
+        )
+   
 
 
 st.set_page_config(
@@ -357,108 +457,42 @@ if selected_page == "🥕 My Pantry":
         st.session_state.supabase_client
     )
 
+    grouped_inventory = group_pantry_items(inventory_items)
+
     if inventory_items:
         st.caption(
             f"You have {len(inventory_items)} pantry "
             f"{'entry' if len(inventory_items) == 1 else 'entries'}."
         )
 
-        for item in inventory_items:
+        for ingredient_name, batches in grouped_inventory.items():
             with st.container(border=True):
-                st.write(f"🥕 **{item['name'].title()}**")
-                st.caption(f"Quantity: {item['quantity']} {item['unit']}")
+                st.subheader(f"🥕 {batches[0]['name'].title()}")
 
-                storage_labels = {
-                    "REFRIGERATOR": "Refrigerator",
-                    "FREEZER": "Freezer",
-                    "PANTRY": "Pantry / room temperature",
-                }
+                if len(batches) > 1:
+                    units = {item["unit"] for item in batches}
 
-                storage_location = item.get("storage_location")
+                    if len(units) == 1:
+                        total_quantity = sum(item["quantity"] for item in batches)
+                        unit = batches[0]["unit"]
 
-                if storage_location:
-                    st.caption(
-                        f"📦 Stored in: {storage_labels.get(storage_location, storage_location)}"
-                    )
+                        display_unit = unit
 
-                if item.get("purchase_date"):
-                    st.caption(f"📅 Purchased: {item['purchase_date']}")
+                        if unit == "item" and total_quantity != 1:
+                            display_unit = "items"
 
-                if item.get("expiration_date"):
-                    st.caption(f"🏷️ Package expiration / use-by: {item['expiration_date']}")
+                        st.caption(f"Total quantity: {total_quantity} {display_unit}")
 
-                adapted_item = adapt_pantry_item(item)
+                    else:
+                        st.caption(f"{len(batches)} batches with different units")
 
-                foodkeeper_result = evaluate_foodkeeper(
-                    adapted_item,
-                    as_of=date.today(),
-                )
+                for index, item in enumerate(batches):
+                    if index > 0:
+                        st.divider()
 
-                if foodkeeper_result["recommended_use_date"]:
-                    st.caption(
-                        f"🌱 FoodKeeper use-soon reminder: "
-                        f"{foodkeeper_result['recommended_use_date']}"
-                    )
-                    st.caption(
-                        f"Priority: {foodkeeper_result['use_priority']}"
-                    )
-                    
-                    if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
-                        st.warning("⚠️ FoodKeeper reminder is overdue.")
-                    elif foodkeeper_result["reminder_status"] == "TODAY":
-                        st.info("📅 FoodKeeper reminder is due today.")
+                    render_pantry_batch(item)
 
-                    if foodkeeper_result["source"]:
-                        st.caption(
-                            f"Source: {foodkeeper_result['source']}"
-                        )
-
-                leftovers_result = evaluate_leftovers(
-                    adapted_item,
-                    as_of=date.today(),
-                )
-
-                if leftovers_result["recommended_use_date"]:
-                    st.caption(
-                        f"🧊 FoodSafety.gov use-soon reminder: "
-                        f"{leftovers_result['recommended_use_date']}"
-                    )
-                    st.caption(
-                        f"Priority: {leftovers_result['use_priority']}"
-                    )
-
-                    if leftovers_result["reminder_status"] == "PAST_REMINDER":
-                        st.warning("⚠️ FoodSafety.gov reminder is overdue.")
-                    elif leftovers_result["reminder_status"] == "TODAY":
-                        st.info("📅 FoodSafety.gov reminder is due today.")
-
-                    if leftovers_result["source"]:
-                        st.caption(
-                            f"Source: {leftovers_result['source']}"
-                        )
-
-                osu_rule = find_osu_rule(item["name"])
-
-                if (
-                    osu_rule is not None
-                    and storage_location == osu_rule["storage_location"]
-                ):
-                    st.caption(
-                        f"🌿 OSU Extension storage guidance: "
-                        f"{osu_rule['duration_raw']}"
-                    )
-                    st.caption(
-                        f"Recommended temperature: "
-                        f"{osu_rule['storage_temperature_raw']}"
-                    )
-                    st.caption(
-                        "Approximate storage time for best quality; "
-                        "not a calculated expiration date."
-                    )
-                    st.caption(
-                        f"Source: {osu_rule['source_url']}"
-                    )
-
+                
     else:
         st.info("Your pantry is empty. Add your first ingredient below!")
 
