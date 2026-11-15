@@ -764,10 +764,37 @@ if selected_page == "📷 Scan Food":
         st.subheader("📷 Food Image Recognition")
         st.caption("Upload a photo of food and let AI identify the ingredient.")
 
+        if st.session_state.pop("image_entry_success", False):
+            st.success("Ingredient successfully saved to your pantry!")
+
+        def clear_image_recognition():
+           st.session_state.recognized_food = None
+
+           for key in (
+               "confirmed_image_name",
+               "confirmed_image_quantity",
+               "confirmed_image_unit",
+               "confirmed_image_storage",
+               "confirmed_image_purchase_date",
+               "confirmed_image_expiration_date",
+            ):
+               st.session_state.pop(key, None)
+
+
+        if st.session_state.pop("reset_image_entry", False):
+            clear_image_recognition()
+            
+        if "food_image_upload_version" not in st.session_state:
+            st.session_state.food_image_upload_version = 0
+
+
         uploaded_image = st.file_uploader(
             "Upload a food image",
-            type=["jpg", "jpeg", "png"]
+            type=["jpg", "jpeg", "png"],
+            key=f"food_image_upload_{st.session_state.food_image_upload_version}",
+            on_change=clear_image_recognition,
         )
+
 
         if uploaded_image is not None:
             st.image(uploaded_image, caption="Uploaded food image")
@@ -790,10 +817,12 @@ if selected_page == "📷 Scan Food":
                     with st.spinner("Identifying food..."):
                         recognized_food = recognize_food(temporary_path)
 
-                    if recognized_food.lower() == "unknown":
+                    if not recognized_food or recognized_food.strip().casefold() == "unknown":
+                        st.session_state.recognized_food = None
                         st.warning("Food could not be identified.")
                     else:
-                        st.success(f"Identified food: {recognized_food}")
+                        st.session_state.recognized_food = recognized_food.strip()
+                       
 
                 except Exception as error:
                     st.error(f"Image recognition failed: {error}")
@@ -801,6 +830,109 @@ if selected_page == "📷 Scan Food":
                 finally:
                     if temporary_path is not None:
                         temporary_path.unlink(missing_ok=True)
+
+            
+            if st.session_state.get("recognized_food"):
+                st.success(
+                    f"Recognized ingredient: {st.session_state.recognized_food}"
+                )
+
+                st.markdown("#### Confirm Ingredient")
+
+                if not st.session_state.get("confirmed_image_name"):
+                    st.session_state.confirmed_image_name = (
+                        st.session_state.recognized_food
+                    )
+
+                confirmed_image_name = st.text_input(
+                    "Ingredient name",
+                    key="confirmed_image_name",
+                )
+
+                quantity_column, unit_column = st.columns(2, gap="large")
+
+                with quantity_column:
+                    confirmed_image_quantity = st.number_input(
+                        "Quantity",
+                        min_value=1,
+                        value=1,
+                        step=1,
+                        key="confirmed_image_quantity",
+                    )
+
+                with unit_column:
+                    confirmed_image_unit = st.selectbox(
+                        "Unit",
+                        ["item", "bag", "box", "can", "bottle", "lb", "oz", "g", "kg"],
+                        key="confirmed_image_unit",
+                    )
+
+                confirmed_image_storage = st.selectbox(
+                    "Storage location",
+                    options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+                    format_func=lambda value: {
+                        "": "Select storage location",
+                        "REFRIGERATOR": "Refrigerator",
+                        "FREEZER": "Freezer",
+                        "PANTRY": "Pantry / room temperature",
+                    }[value],
+                    key="confirmed_image_storage",
+                )
+
+                st.caption("Optional dates for storage reminders")
+
+                confirmed_image_purchase_date = st.date_input(
+                    "Purchase date",
+                    value=None,
+                    format="MM/DD/YYYY",
+                    key="confirmed_image_purchase_date",
+                )
+
+                confirmed_image_expiration_date = st.date_input(
+                    "Package expiration / use-by date",
+                    value=None,
+                    format="MM/DD/YYYY",
+                    key="confirmed_image_expiration_date",
+                )
+
+                if st.button(
+                    "➕ Save Recognized Ingredient to Pantry",
+                    use_container_width=True,
+                    key="save_recognized_ingredient",
+                ):
+                    if not confirmed_image_name.strip():
+                        st.warning("Please enter an ingredient name.")
+                    else:
+                        try:
+                            add_pantry_item(
+                                st.session_state.supabase_client,
+                                confirmed_image_name.strip(),
+                                confirmed_image_quantity,
+                                confirmed_image_unit,
+                                purchase_date=(
+                                    confirmed_image_purchase_date.isoformat()
+                                    if confirmed_image_purchase_date else None
+                                ),
+                                expiration_date=(
+                                    confirmed_image_expiration_date.isoformat()
+                                    if confirmed_image_expiration_date else None
+                                ),
+                                storage_location=confirmed_image_storage or None,
+                            )
+
+                            st.session_state.pantry_manager.add_item(
+                                confirmed_image_name.strip(),
+                                confirmed_image_quantity,
+                                confirmed_image_unit,
+                            )
+
+                            st.session_state["reset_image_entry"] = True
+                            st.session_state["image_entry_success"] = True
+                            st.session_state.food_image_upload_version += 1
+                            st.rerun()
+
+                        except Exception as error:
+                            st.error(f"Could not save ingredient: {error}")
 
     with barcode_column:
         st.subheader("📦 Barcode Product Lookup")
