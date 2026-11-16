@@ -203,6 +203,27 @@ def confirm_pantry_command(command, pantry, confirmed):
 def handle_supabase_pantry_command(command, client):
     """Add a confirmed pantry item to the authenticated user's Supabase pantry."""
 
+    if not isinstance(command, dict):
+        raise ValueError("Pantry command must be a dictionary.")
+
+    ingredient = command.get("ingredient")
+    quantity = command.get("quantity")
+    unit = command.get("unit")
+
+    if not isinstance(ingredient, str) or not ingredient.strip():
+        raise ValueError("Ingredient name is required.")
+
+    if (
+        isinstance(quantity, bool)
+        or not isinstance(quantity, (int, float))
+        or not math.isfinite(quantity)
+        or quantity <= 0
+    ):
+        raise ValueError("Quantity must be a positive, finite number.")
+
+    if not isinstance(unit, str) or not unit.strip():
+        raise ValueError("Unit is required.")
+
     if command["action"] != "add":
         raise ValueError("Unsupported pantry action.")
 

@@ -298,3 +298,26 @@ def test_mochi_adds_item_to_supabase(monkeypatch):
     }]
 
     assert result == [{"id": 101, "name": "rice"}]
+
+
+
+import pytest
+
+
+@pytest.mark.parametrize("command", [
+    {"action": "add", "ingredient": "", "quantity": 2, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": -2, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": 0, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": 2, "unit": ""},
+    {"action": "delete", "ingredient": "rice", "quantity": 2, "unit": "cups"},
+    None,
+])
+def test_mochi_rejects_invalid_supabase_commands(command):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    with pytest.raises(ValueError):
+        handle_supabase_pantry_command(command, object())
+
+
+
+        
