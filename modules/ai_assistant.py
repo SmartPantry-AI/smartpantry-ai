@@ -242,3 +242,20 @@ def handle_supabase_pantry_command(command, client):
         quantity=command["quantity"],
         unit=command["unit"],
     )
+
+
+def format_pantry_inventory(pantry_items):
+    """Format saved pantry records for Mochi's response."""
+
+    if not pantry_items:
+        return "Your pantry is currently empty."
+
+    item_list = [
+        f"- {item['name']}: {item['quantity']} {item['unit']}"
+        for item in pantry_items
+    ]
+
+    return (
+        "Here's what's currently in your pantry:\n\n"
+        + "\n".join(item_list)
+    )

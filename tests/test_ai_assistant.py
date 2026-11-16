@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from modules.ai_assistant import ask_ai, MOCHI_INSTRUCTIONS, handle_pantry_command, interpret_pantry_request, confirm_pantry_command
+
+from modules.ai_assistant import ask_ai, MOCHI_INSTRUCTIONS, handle_pantry_command, interpret_pantry_request, confirm_pantry_command, format_pantry_inventory
 
 def test_ask_ai_returns_response():
     #Create a fake OpenAI response
@@ -318,6 +319,33 @@ def test_mochi_rejects_invalid_supabase_commands(command):
     with pytest.raises(ValueError):
         handle_supabase_pantry_command(command, object())
 
+def test_mochi_formats_pantry_inventory():
+    pantry_items = [
+        {"name": "Banana", "quantity": 5, "unit": "item"},
+        {"name": "Rice", "quantity": 10, "unit": "lb"},
+    ]
 
+    result = format_pantry_inventory(pantry_items)
+
+    assert "Banana: 5 item" in result
+    assert "Rice: 10 lb" in result
+
+
+def test_mochi_handles_empty_pantry():
+    result = format_pantry_inventory([])
+
+    assert result == "Your pantry is currently empty."
+
+
+def test_mochi_preserves_separate_pantry_batches():
+    pantry_items = [
+        {"name": "Rice", "quantity": 10, "unit": "lb"},
+        {"name": "Rice", "quantity": 2, "unit": "cups"},
+    ]
+
+    result = format_pantry_inventory(pantry_items)
+
+    assert "Rice: 10 lb" in result
+    assert "Rice: 2 cups" in result
 
         
