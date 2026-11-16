@@ -181,10 +181,25 @@ def test_spoonacular_ranking_integration():
         0.40
     )
 
-    assert ranked_recipes == [
-        {"name": "Chicken Spinach Rice Bowl", "score": 85},
-        {"name": "Chicken Rice Bowl", "score": 76}
+    assert [recipe["name"] for recipe in ranked_recipes] == [
+        "Chicken Spinach Rice Bowl",
+        "Chicken Rice Bowl"
+        
     ]
+
+    assert [recipe["score"] for recipe in ranked_recipes] == [85, 76]
+
+    assert ranked_recipes[0]["available_count"] == 3
+    assert ranked_recipes[0]["missing_count"] == 1
+
+    assert ranked_recipes[0]["ingredients"] == [
+        "chicken breast",
+        "spinach",
+        "rice",
+        "garlic"
+    ]
+
+
 
 def test_rank_spoonacular_recipes():
     spoonacular_recipes = [
@@ -220,10 +235,18 @@ def test_rank_spoonacular_recipes():
         pantry
     )
 
-    assert ranked_recipes == [
-        {"name": "Chicken Spinach Rice Bowl", "score": 85},
-        {"name": "Chicken Rice Bowl", "score": 76}
+    assert [recipe["name"] for recipe in ranked_recipes] == [
+        "Chicken Spinach Rice Bowl",
+        "Chicken Rice Bowl"
     ]
+
+    assert [recipe["score"] for recipe in ranked_recipes] == [85, 76]
+
+    assert ranked_recipes[0]["available_count"] == 3
+    assert ranked_recipes[0]["missing_count"] == 1
+
+    assert ranked_recipes[1]["available_count"] == 2
+    assert ranked_recipes[1]["missing_count"] == 0
 
     assert rank_spoonacular_recipes([], pantry) == []
 
@@ -560,6 +583,51 @@ def test_missing_required_ingredient_blocks_alternative():
     assert alternatives == [] 
 
 
+def test_recipe_filter_with_incomplete_acknowledgment():
+    from modules.recipe_recommender import filter_recipes_by_recall_status
+
+    recipes = [
+        {
+            "name": "Spinach Salad",
+            "ingredients": ["Spinach"],
+        }
+    ]
+
+    pantry = [
+        {
+            "name": "Spinach",
+        }
+    ]
+
+    recall_results = {
+        "Spinach": {
+            "status": "NO_MATCH",
+            "check_status": "INCOMPLETE",
+        }
+    }
+
+    # Incomplete checks block recipes by default.
+    assert filter_recipes_by_recall_status(
+        recipes, pantry, recall_results
+    ) == []
+
+    # Explicit acknowledgment allows the recipe.
+    assert filter_recipes_by_recall_status(
+        recipes,
+        pantry,
+        recall_results,
+        acknowledge_incomplete=True
+    ) == recipes
+
+    # A potential recall match remains blocked.
+    recall_results["Spinach"]["status"] = "POSSIBLE_MATCH"
+
+    assert filter_recipes_by_recall_status(
+        recipes,
+        pantry,
+        recall_results,
+        acknowledge_incomplete=True
+    ) == []
 
     
        

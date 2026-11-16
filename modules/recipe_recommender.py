@@ -15,7 +15,10 @@ def fetch_spoonacular_recipes(ingredients):
 
     params = {
         "apiKey": spoonacular_api_key,
-        "ingredients": ", ".join(ingredients)
+        "ingredients": ", ".join(ingredients),
+        "number": 5,
+        "ranking": 1,
+        "ignorePantry": True,
     }
 
     response = requests.get(
@@ -138,7 +141,6 @@ def get_pantry_names(pantry):
         pantry_names.append(item["name"])
     return pantry_names
 
-pantry_names = get_pantry_names(pantry)
 
 def get_expiration_points(days_until_expiration):
     if days_until_expiration <= 1:
@@ -300,7 +302,10 @@ def rank_recipes (
 
         recipe_result = {
             "name": recipe["name"],
-            "score": final_score
+            "score": final_score,
+            "ingredients": recipe["ingredients"],
+            "available_count": available_count,
+            "missing_count": missing_count,
         }
 
         recipe_results.append(recipe_result)
@@ -312,7 +317,13 @@ def rank_recipes (
 
     return recipe_results
 
-def filter_recipes_by_recall_status(recipes, pantry, recall_results):
+def filter_recipes_by_recall_status(
+    recipes,
+    pantry,
+    recall_results,
+    acknowledge_incomplete=False
+):
+    
     """Exclude recipes using pantry ingredients without verified recall clearance."""
     eligible_recipes = []
 
@@ -327,7 +338,10 @@ def filter_recipes_by_recall_status(recipes, pantry, recall_results):
         ]
 
         all_ingredients_clear = all(
-            is_recipe_eligible(recall_results.get(name, {}))
+            is_recipe_eligible(
+                recall_results.get(name, {}),
+                acknowledge_incomplete=acknowledge_incomplete
+            )
             for name in pantry_ingredients
         )
 
@@ -402,13 +416,15 @@ def rank_recall_checked_recipes(
     pantry,
     recall_results,
     pantry_weight=0.60,
-    expiration_weight=0.40
+    expiration_weight=0.40,
+    acknowledge_incomplete=False
 ):
 
     eligible_recipes = filter_recipes_by_recall_status(
         recipes,
         pantry,
-        recall_results
+        recall_results,
+        acknowledge_incomplete=acknowledge_incomplete
     )
 
     return rank_recipes(
