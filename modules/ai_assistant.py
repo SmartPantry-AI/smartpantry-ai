@@ -200,4 +200,17 @@ def confirm_pantry_command(command, pantry, confirmed):
     return handle_pantry_command(command, pantry)
 
 
+def handle_supabase_pantry_command(command, client):
+    """Add a confirmed pantry item to the authenticated user's Supabase pantry."""
 
+    if command["action"] != "add":
+        raise ValueError("Unsupported pantry action.")
+
+    from modules.supabase_pantry import add_pantry_item
+
+    return add_pantry_item(
+        client=client,
+        name=command["ingredient"],
+        quantity=command["quantity"],
+        unit=command["unit"],
+    )
