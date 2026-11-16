@@ -266,8 +266,13 @@ def render_mochi_chat():
                 "mochi, add ",
                 "mochi add ",
                 "please add ",
+                "can you add ",
+                "could you add ",
+                "mochi, can you add ",
+                "mochi, could you add ",
+                "mochi can you add ",
+                "mochi could you add ",
             ))
-            and "?" not in message_text
         )
 
         if is_pantry_add_request:
