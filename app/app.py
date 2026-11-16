@@ -56,6 +56,7 @@ from modules.ai_assistant import (
     ask_ai,
     interpret_pantry_request,
     handle_supabase_pantry_command,
+    format_pantry_inventory,
 )
 
 from modules.barcode_lookup import identify_product
@@ -289,6 +290,33 @@ def render_mochi_chat():
                 mochi_response = (
                     "I couldn't understand that pantry request. "
                     "Try something like 'Add 2 cups of rice.'"
+                )
+
+            st.session_state.mochi_messages.append({
+                "role": "assistant",
+                "content": mochi_response,
+            })
+            st.rerun()
+
+        is_pantry_read_request = (
+            "what's in my pantry" in message_text.lower()
+            or "what is in my pantry" in message_text.lower()
+            or "show my pantry" in message_text.lower()
+            or "list my pantry" in message_text.lower()
+        )
+
+        if is_pantry_read_request:
+            try:
+                pantry_items = load_user_pantry(
+                    st.session_state.supabase_client
+                )
+
+                mochi_response = format_pantry_inventory(pantry_items)
+
+            except Exception:
+                mochi_response = (
+                    "I couldn't retrieve your pantry right now. "
+                    "Please try again."
                 )
 
             st.session_state.mochi_messages.append({
