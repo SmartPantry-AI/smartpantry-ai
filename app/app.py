@@ -22,6 +22,7 @@ from modules.supabase_pantry import (
 )
 
 import streamlit as st
+import requests
 
 from modules.image_recognition import recognize_food
 import tempfile

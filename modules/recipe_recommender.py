@@ -464,6 +464,8 @@ if __name__ == "__main__":
         expiration_weight
     )
 
+    pantry_names = {item["name"] for item in pantry}
+    
     total_expiration_points = calculate_total_expiration_points(pantry)
 
     print("Total pantry expiration points:", total_expiration_points)
