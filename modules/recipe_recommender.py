@@ -312,7 +312,13 @@ def rank_recipes (
 
     return recipe_results
 
-def filter_recipes_by_recall_status(recipes, pantry, recall_results):
+def filter_recipes_by_recall_status(
+    recipes,
+    pantry,
+    recall_results,
+    acknowledge_incomplete=False
+):
+    
     """Exclude recipes using pantry ingredients without verified recall clearance."""
     eligible_recipes = []
 
@@ -327,7 +333,10 @@ def filter_recipes_by_recall_status(recipes, pantry, recall_results):
         ]
 
         all_ingredients_clear = all(
-            is_recipe_eligible(recall_results.get(name, {}))
+            is_recipe_eligible(
+                recall_results.get(name, {}),
+                acknowledge_incomplete=acknowledge_incomplete
+            )
             for name in pantry_ingredients
         )
 
@@ -402,13 +411,15 @@ def rank_recall_checked_recipes(
     pantry,
     recall_results,
     pantry_weight=0.60,
-    expiration_weight=0.40
+    expiration_weight=0.40,
+    acknowledge_incomplete=False
 ):
 
     eligible_recipes = filter_recipes_by_recall_status(
         recipes,
         pantry,
-        recall_results
+        recall_results,
+        acknowledge_incomplete=acknowledge_incomplete
     )
 
     return rank_recipes(

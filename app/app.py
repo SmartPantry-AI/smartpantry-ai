@@ -35,7 +35,11 @@ from modules.storage_guidance import (
 )
 
 
-from modules.recall_checker import get_fda_recalls
+from modules.recall_checker import (
+    get_fda_recalls,
+    get_usda_recalls,
+    match_recall_to_product,
+)
 
 from modules.recipe_recommender import (
     rank_recall_checked_recipes,
@@ -334,6 +338,7 @@ if selected_page == "🏠 Home":
 
     with home_main:
         pantry_items = st.session_state.pantry_manager.get_items()
+
 
         with st.container(border=True):
             welcome_text, welcome_art = st.columns(
@@ -1063,8 +1068,198 @@ if selected_page == "📷 Scan Food":
 
 if selected_page == "🧊 Food Safety":
     st.header("🧊 Food Safety")
-    st.caption("Explore food storage guidance and search FDA recall records.")
+    st.caption(
+        "Review food storage guidance and screen your saved pantry "
+        "against FDA and USDA recall records."
+    )
     st.divider()
+
+    st.subheader("🚨 Pantry Recall Screening")
+    st.caption(
+        "Check your saved pantry against available FDA and USDA recall records. "
+        "Screening runs only when you request it."
+    )
+
+    if st.button(
+        "🔍 Check My Pantry for Recalls",
+        use_container_width=True,
+        key="check_pantry_recalls"
+    ):
+        pantry_items = load_user_pantry(
+            st.session_state.supabase_client
+        )
+
+        st.write("Pantry items retrieved:", len(pantry_items))
+
+        if pantry_items:
+            with st.spinner("Retrieving USDA recall records..."):
+                usda_result = get_usda_recalls()
+
+            if usda_result["error"]:
+                st.warning(
+                    "USDA recall records could not be retrieved. "
+                    "Screening remains incomplete."
+                )
+            else:
+                st.write(
+                    "USDA records retrieved:",
+                    len(usda_result["records"])
+                )
+
+                usda_matches = []
+                seen_matches = set()
+
+                for item in pantry_items:
+                    product = {
+                        "product_name": item["name"],
+                        "brand": item.get("brand"),
+                        "upc": item.get("upc"),
+                        "lot_code": item.get("lot_code"),
+                    }
+
+                    for recall in usda_result["records"]:
+                        result = match_recall_to_product(product, recall)
+
+                        if result["status"] == "POSSIBLE_MATCH":
+                            match_key = (
+                                item["id"],
+                                recall.get("recall_id"),
+                            )
+
+                            if match_key not in seen_matches:
+                                seen_matches.add(match_key)
+                                usda_matches.append({
+                                    "product": item["name"],
+                                    "recall": recall,
+                                })
+
+                st.write(
+                    "USDA records flagged for review:",
+                    len(usda_matches)
+                )
+
+                if usda_matches:
+                    with st.expander("Review USDA screening results"):
+                        for match in usda_matches:
+                            st.write("Pantry item:", match["product"])
+                            st.write(
+                                "Recall:",
+                                match["recall"].get("product_description")
+                            )
+                            st.write(
+                                "Official notice:",
+                                match["recall"].get("source_url")
+                            )
+                            st.divider()
+
+                st.caption(
+                    "Preliminary screening of retrieved records only. "
+                    "A potential match requires product verification, "
+                    "and zero matches does not establish food safety."
+                )
+
+                unique_product_names = sorted({
+                    item["name"].strip()
+                    for item in pantry_items
+                    if item.get("name") and item["name"].strip()
+                })[:2]
+
+                fda_records = []
+                fda_errors = []
+
+                with st.spinner("Searching FDA recalls for pantry products..."):
+                    for product_name in unique_product_names:
+                        result = get_fda_recalls(product_name, limit=10)
+
+                        if result["error"]:
+                            fda_errors.append(product_name)
+                        else:
+                            fda_records.extend(result["records"])
+
+                st.write(
+                    "FDA recall records retrieved:",
+                    len(fda_records)
+                )
+
+                fda_matches = []
+                seen_fda_matches = set()
+
+                for item in pantry_items:
+                    if item["name"].strip() not in unique_product_names:
+                        continue
+
+                    product = {
+                        "product_name": item["name"],
+                        "brand": item.get("brand"),
+                        "upc": item.get("upc"),
+                        "lot_code": item.get("lot_code"),
+                    }
+
+                    for recall in fda_records:
+                        result = match_recall_to_product(product, recall)
+
+                        if result["status"] == "POSSIBLE_MATCH":
+                            match_key = (
+                                item["id"],
+                                recall.get("recall_number"),
+                            )
+
+                            if match_key not in seen_fda_matches:
+                                seen_fda_matches.add(match_key)
+                                fda_matches.append({
+                                    "product": item["name"],
+                                    "recall": recall,
+                                })
+
+                st.write(
+                    "FDA product-name overlaps requiring verification:",
+                    len(fda_matches)
+                )
+
+                if fda_matches:
+                    with st.expander("Review FDA product-name overlaps"):
+                        for match in fda_matches[:10]:
+                            st.write("Pantry item:", match["product"])
+                            st.write(
+                                "Recall:",
+                                match["recall"].get("product_description")
+                            )
+                            st.write(
+                                "Recall number:",
+                                match["recall"].get("recall_number")
+                            )
+                            st.divider()
+
+                st.caption(
+                    "FDA screening covers only two pantry product names "
+                    "and up to ten search records per name. "
+                    "Results require product verification."
+                )
+
+                st.session_state["pantry_recall_screening"] = {
+                    "pantry_item_ids": sorted(
+                        item["id"] for item in pantry_items
+                    ),
+                    "usda_records_checked": len(usda_result["records"]),
+                    "usda_name_overlaps": len(usda_matches),
+                    "fda_records_checked": len(fda_records),
+                    "fda_name_overlaps": len(fda_matches),
+                    "fda_searches_failed": len(fda_errors),
+                    "status": "INCOMPLETE",
+                }
+
+                st.write(
+                    "FDA searches that could not be completed:",
+                    len(fda_errors)
+                )
+
+                st.caption(
+                    "FDA searches use pantry product names. Retrieved records "
+                    "are not confirmed matches to your specific products."
+                )
+
+        else:
+            st.info("Your pantry is empty. Add an item before screening.")
 
     storage_column, recall_column = st.columns(2, gap="large")
 
@@ -1209,8 +1404,7 @@ if selected_page == "🍳 Recipes":
     st.divider()
 
     st.write(
-        "Find recipes using pantry ingredients, "
-        "with recall verification required before recommending them."
+        "Discover recipe ideas using ingredients already in your pantry."
     )
 
     if st.button(
@@ -1218,10 +1412,10 @@ if selected_page == "🍳 Recipes":
         type="primary",
         use_container_width=True
     ):
-        st.info(
-            "Recipe recommendations require verified recall clearance. "
-            "Ingredients with incomplete recall checks cannot be "
-            "approved for recipe recommendations."
+        st.caption(
+            "Recipe suggestions are based on your pantry ingredients. "
+            "For additional peace of mind, you can check available "
+            "recall information on the Food Safety page."
         )
 
         st.subheader("🥗 Sample Recipe Rankings")
@@ -1231,6 +1425,21 @@ if selected_page == "🍳 Recipes":
         )
 
         pantry_items = st.session_state.pantry_manager.get_items()
+
+        screening = st.session_state.get("pantry_recall_screening")
+
+        if screening is None:
+            st.warning(
+                "Your pantry has not been screened for recalls in this session. "
+                "Visit Food Safety to run a check."
+            )
+        else:
+            st.info(
+                "Latest pantry screening: "
+                f"{screening['usda_records_checked']} USDA records and "
+                f"{screening['fda_records_checked']} FDA records reviewed. "
+                "Screening remains incomplete."
+            )
 
         ranked_recipes = rank_recipes(
             sample_recipes,

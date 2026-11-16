@@ -757,4 +757,243 @@ def test_recall_no_matches_does_not_clear_recipe():
     assert result["status"] != "CLEAR"
     assert is_recipe_eligible(result) is False
 
-    
+
+
+def test_get_usda_recalls_success(monkeypatch):
+    from modules.recall_checker import get_usda_recalls
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "count": 1,
+                "returned": 1,
+                "recalls": [
+                    {
+                        "recall_number": "TEST-001",
+                        "company": "Test Foods",
+                        "classification": "Class I",
+                    }
+                ],
+            }
+
+    def mock_get(url, timeout):
+        return MockResponse()
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        mock_get,
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert result["error"] is None
+    assert len(result["records"]) == 1
+    assert result["records"][0]["recall_id"] == "TEST-001"
+
+
+def test_get_usda_recalls_connection_failure(monkeypatch):
+    import requests
+    from modules.recall_checker import get_usda_recalls
+
+    def mock_get(url, timeout):
+        raise requests.ConnectionError("API unavailable")
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        mock_get,
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert result["records"] == []
+    assert "USDA recall retrieval failed" in result["error"]
+
+
+def test_get_usda_recalls_invalid_response(monkeypatch):
+    from modules.recall_checker import get_usda_recalls
+
+    class MockResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"message": "Unexpected response"}
+
+    def mock_get(url, timeout):
+        return MockResponse()
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        mock_get,
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert result["records"] == []
+    assert result["error"] == (
+        "USDA API response is missing a valid recalls list."
+    )
+
+
+def test_normalize_usda_recall():
+    from modules.recall_checker import normalize_usda_recall
+
+    records = [
+        {
+            "recall_number": "TEST-001",
+            "company": "Example Foods",
+            "title": "Chicken Product Recall",
+            "classification": "Class I",
+            "reason": "Possible contamination",
+            "url": "https://example.com/recall",
+        },
+        {
+            "recall_number": "PHA-001",
+            "company": "Another Company",
+            "title": "Public Health Alert for Meat Products",
+            "classification": "Public Health Alert",
+            "reason": "Undeclared allergens",
+            "url": "https://example.com/alert",
+        },
+    ]
+
+    normalized = [normalize_usda_recall(record) for record in records]
+
+    assert normalized[0]["source"] == "USDA_FSIS"
+    assert normalized[0]["recall_id"] == "TEST-001"
+    assert normalized[0]["brand"] == "Example Foods"
+    assert normalized[0]["source_classification"] == "Class I"
+    assert normalized[0]["recall_status"] == "UNKNOWN"
+
+    assert normalized[1]["recall_id"] == "PHA-001"
+    assert normalized[1]["source_classification"] == "Public Health Alert"
+    assert normalized[1]["recall_status"] == "UNKNOWN"
+
+    assert normalized[0]["upc"] is None
+    assert normalized[0]["lot_codes"] == []
+  
+def test_recall_name_matching_requires_same_brand():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Chicken Breast",
+        "brand": "Brand A",
+    }
+
+    recall = {
+        "product_description": "Chicken Breast",
+        "brand": "Brand B",
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"
+
+
+def test_recall_name_matching_same_brand():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Chicken Breast",
+        "brand": "Brand A",
+    }
+
+    recall = {
+        "product_description": "Chicken Breast",
+        "brand": "Brand A",
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+def test_usda_record_matches_pantry_product():
+    from modules.recall_checker import (
+        normalize_usda_recall,
+        match_recall_to_product,
+    )
+
+    usda_record = {
+        "recall_number": "TEST-CHICKEN-001",
+        "company": "Example Foods",
+        "title": "Chicken Breast 16 oz",
+        "classification": "Class I",
+        "reason": "Possible contamination",
+    }
+
+    pantry_product = {
+        "product_name": "Chicken Breast",
+        "brand": "Example Foods",
+    }
+
+    normalized_recall = normalize_usda_recall(usda_record)
+
+    result = match_recall_to_product(
+        pantry_product,
+        normalized_recall,
+    )
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+
+def test_recipe_eligibility_with_incomplete_acknowledgment():
+    from modules.recall_checker import is_recipe_eligible
+
+    no_match = {
+        "status": "NO_MATCH",
+        "check_status": "INCOMPLETE",
+    }
+
+    possible_match = {
+        "status": "POSSIBLE_MATCH",
+        "check_status": "INCOMPLETE",
+    }
+
+    # Incomplete checks are blocked by default.
+    assert is_recipe_eligible(no_match) is False
+
+    # Acknowledgment permits proceeding without claiming clearance.
+    assert is_recipe_eligible(
+        no_match,
+        acknowledge_incomplete=True,
+    ) is True
+
+    # Potential recall matches remain blocked.
+    assert is_recipe_eligible(
+        possible_match,
+        acknowledge_incomplete=True,
+    ) is False
+
+    # Missing results cannot be bypassed.
+    assert is_recipe_eligible(
+        {},
+        acknowledge_incomplete=True,
+    ) is False
+
+
+def test_generic_ingredient_does_not_match_prepared_food():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "rice",
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
+    }
+
+    recall = {
+        "product_description": "Chicken and Pork Fried Rice Products",
+        "brand": "Example Foods",
+        "upc": None,
+        "lot_codes": [],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"    

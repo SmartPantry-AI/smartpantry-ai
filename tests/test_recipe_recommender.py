@@ -560,6 +560,51 @@ def test_missing_required_ingredient_blocks_alternative():
     assert alternatives == [] 
 
 
+def test_recipe_filter_with_incomplete_acknowledgment():
+    from modules.recipe_recommender import filter_recipes_by_recall_status
+
+    recipes = [
+        {
+            "name": "Spinach Salad",
+            "ingredients": ["Spinach"],
+        }
+    ]
+
+    pantry = [
+        {
+            "name": "Spinach",
+        }
+    ]
+
+    recall_results = {
+        "Spinach": {
+            "status": "NO_MATCH",
+            "check_status": "INCOMPLETE",
+        }
+    }
+
+    # Incomplete checks block recipes by default.
+    assert filter_recipes_by_recall_status(
+        recipes, pantry, recall_results
+    ) == []
+
+    # Explicit acknowledgment allows the recipe.
+    assert filter_recipes_by_recall_status(
+        recipes,
+        pantry,
+        recall_results,
+        acknowledge_incomplete=True
+    ) == recipes
+
+    # A potential recall match remains blocked.
+    recall_results["Spinach"]["status"] = "POSSIBLE_MATCH"
+
+    assert filter_recipes_by_recall_status(
+        recipes,
+        pantry,
+        recall_results,
+        acknowledge_incomplete=True
+    ) == []
 
     
        
