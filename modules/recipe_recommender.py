@@ -15,7 +15,10 @@ def fetch_spoonacular_recipes(ingredients):
 
     params = {
         "apiKey": spoonacular_api_key,
-        "ingredients": ", ".join(ingredients)
+        "ingredients": ", ".join(ingredients),
+        "number": 5,
+        "ranking": 1,
+        "ignorePantry": True,
     }
 
     response = requests.get(
@@ -138,7 +141,6 @@ def get_pantry_names(pantry):
         pantry_names.append(item["name"])
     return pantry_names
 
-pantry_names = get_pantry_names(pantry)
 
 def get_expiration_points(days_until_expiration):
     if days_until_expiration <= 1:
@@ -300,7 +302,10 @@ def rank_recipes (
 
         recipe_result = {
             "name": recipe["name"],
-            "score": final_score
+            "score": final_score,
+            "ingredients": recipe["ingredients"],
+            "available_count": available_count,
+            "missing_count": missing_count,
         }
 
         recipe_results.append(recipe_result)

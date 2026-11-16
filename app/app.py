@@ -45,10 +45,8 @@ from modules.recipe_recommender import (
     rank_recall_checked_recipes,
     fetch_spoonacular_recipes,
     convert_spoonacular_recipe,
-)
-
-from modules.recipe_recommender import (
     rank_recipes,
+    ingredients_match,
     recipes as sample_recipes,
     pantry as sample_pantry,
 )
@@ -1418,13 +1416,26 @@ if selected_page == "🍳 Recipes":
             "recall information on the Food Safety page."
         )
 
-        st.subheader("🥗 Sample Recipe Rankings")
+        st.subheader("🥗 Recipes for Your Pantry")
         st.caption(
-            "Explore how sample recipes rank against your saved pantry ingredients. "
-            "These are examples, not verified recipe recommendations."
+            "Discover up to five recipes from Spoonacular, "
+            "ranked using your saved pantry ingredients."
         )
 
-        pantry_items = st.session_state.pantry_manager.get_items()
+        pantry_items = load_user_pantry(st.session_state.supabase_client)
+
+        from datetime import date
+
+        for item in pantry_items:
+            expiration_date = item.get("expiration_date")
+
+            if expiration_date:
+                expiration = date.fromisoformat(expiration_date)
+                item["days_until_expiration"] = (
+                    expiration - date.today()
+                ).days
+            else:
+                item["days_until_expiration"] = None
 
         screening = st.session_state.get("pantry_recall_screening")
 
@@ -1441,23 +1452,90 @@ if selected_page == "🍳 Recipes":
                 "Screening remains incomplete."
             )
 
-        ranked_recipes = rank_recipes(
-            sample_recipes,
-            pantry_items,
-            0.60,
-            0.40
-        )
+        ingredient_names = sorted({
+            item["name"].strip()
+            for item in pantry_items
+            if item.get("name") and item["name"].strip()
+        })
+
+        ranked_recipes = []
+
+        if ingredient_names:
+            try:
+                with st.spinner("Finding recipes using your pantry ingredients..."):
+                    spoonacular_results = fetch_spoonacular_recipes(
+                        ingredient_names
+                    )
+
+                live_recipes = [
+                    convert_spoonacular_recipe(recipe)
+                    for recipe in spoonacular_results
+                ]
+
+                ranked_recipes = rank_recipes(
+                    live_recipes,
+                    pantry_items,
+                    0.60,
+                    0.40
+                )
+
+            except (ValueError, requests.RequestException):
+                st.error(
+                    "Recipe search is temporarily unavailable. "
+                    "Please try again."
+                )
+        else:
+            st.info("Add some ingredients to your pantry to discover recipes.")
 
         for index, recipe in enumerate(ranked_recipes, start=1):
+            available_ingredients = [
+                ingredient
+                for ingredient in recipe["ingredients"]
+                if any(
+                    ingredients_match(item["name"], ingredient)
+                    for item in pantry_items
+                )
+            ]
+
+            missing_ingredients = [
+                ingredient
+                for ingredient in recipe["ingredients"]
+                if not any(
+                    ingredients_match(item["name"], ingredient)
+                    for item in pantry_items
+                )
+            ]
+
             with st.container(border=True):
                 st.write(f"**{index}. {recipe['name']}**")
-                st.caption(f"Sample ranking score: {recipe['score']:.1f}")
+
+                st.caption(f"Pantry match score: {recipe['score']:.1f}")
+
+                st.write(
+                    f"🥕 Ingredients available: {recipe['available_count']}"
+                )
+
+                st.write(
+                    f"🛒 Ingredients missing: {recipe['missing_count']}"
+                )
+
+            if available_ingredients:
+                st.caption(
+                    "✅ In your pantry: "
+                    + ", ".join(available_ingredients)
+                )
+
+            if missing_ingredients:
+                st.caption(
+                    "🛒 You'll need: "
+                    + ", ".join(missing_ingredients)
+                )
+
 
         st.caption(
-            "Rankings use your saved pantry ingredients and sample recipes. "
-            "Expiration dates are not yet connected to recipe scoring. "
-            "These recipes have not passed recall verification "
-            "and are not approved recommendations."
+            "Recipes are retrieved from Spoonacular and ranked using your pantry "
+            "ingredients and available expiration dates. "
+            "Recall screening is separate and may be incomplete."
         )
 
 if selected_page == "🍡 Mochi AI":
