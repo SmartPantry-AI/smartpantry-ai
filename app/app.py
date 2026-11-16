@@ -51,7 +51,11 @@ from modules.recipe_recommender import (
     pantry as sample_pantry,
 )
 
-from modules.ai_assistant import ask_ai
+from modules.ai_assistant import (
+    ask_ai,
+    interpret_pantry_request,
+    handle_supabase_pantry_command,
+)
 
 from modules.barcode_lookup import identify_product
 
@@ -189,6 +193,58 @@ def render_mochi_chat():
         ):
             st.markdown(message["content"])
 
+    pending_command = st.session_state.get("mochi_pending_pantry_command")
+
+    if pending_command:
+        st.info(
+            f"Pending pantry addition: "
+            f"{pending_command['quantity']:g} "
+            f"{pending_command['unit']} of "
+            f"{pending_command['ingredient']}"
+        )
+
+        confirm_col, cancel_col = st.columns(2)
+
+        with confirm_col:
+            if st.button("✅ Confirm Add", key="mochi_confirm_add"):
+                try:
+                    result = handle_supabase_pantry_command(
+                        pending_command,
+                        st.session_state.supabase_client,
+                    )
+
+                    if not result:
+                        raise RuntimeError("Pantry addition was not confirmed.")
+
+                    st.session_state.mochi_messages.append({
+                        "role": "assistant",
+                        "content": (
+                            f"Added {pending_command['quantity']:g} "
+                            f"{pending_command['unit']} of "
+                            f"{pending_command['ingredient']} to your pantry."
+                        ),
+                    })
+
+                    del st.session_state["mochi_pending_pantry_command"]
+                    st.rerun()
+
+                except Exception:
+                    st.error(
+                        "I couldn't save that item. "
+                        "Your pantry may not have been updated."
+                    )
+
+        with cancel_col:
+            if st.button("Cancel", key="mochi_cancel_add"):
+                del st.session_state["mochi_pending_pantry_command"]
+
+                st.session_state.mochi_messages.append({
+                    "role": "assistant",
+                    "content": "Pantry addition canceled.",
+                })
+
+                st.rerun()
+
     mochi_question = st.chat_input(
         "Ask Mochi anything about your kitchen...",
         key="mochi_shared_chat"
@@ -199,6 +255,46 @@ def render_mochi_chat():
             "role": "user",
             "content": mochi_question.strip()
         })
+
+        message_text = mochi_question.strip()
+
+        is_pantry_add_request = (
+            message_text.lower().startswith((
+                "add ",
+                "mochi, add ",
+                "mochi add ",
+                "please add ",
+                "can you add ",
+                "could you add ",
+                "mochi, can you add ",
+                "mochi, could you add ",
+                "mochi can you add ",
+                "mochi could you add ",
+            ))
+        )
+
+        if is_pantry_add_request:
+            try:
+                command = interpret_pantry_request(message_text)
+                st.session_state["mochi_pending_pantry_command"] = command
+
+                mochi_response = (
+                    f"Would you like me to add "
+                    f"{command['quantity']:g} {command['unit']} of "
+                    f"{command['ingredient']} to your pantry?"
+                )
+
+            except (ValueError, KeyError, TypeError):
+                mochi_response = (
+                    "I couldn't understand that pantry request. "
+                    "Try something like 'Add 2 cups of rice.'"
+                )
+
+            st.session_state.mochi_messages.append({
+                "role": "assistant",
+                "content": mochi_response,
+            })
+            st.rerun()
 
         with st.spinner("Mochi is thinking..."):
             mochi_response = ask_ai(

@@ -256,3 +256,68 @@ def test_ask_ai_receives_conversation_history():
             input=history
         )    
         
+
+def test_mochi_adds_item_to_supabase(monkeypatch):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    saved_items = []
+
+    def mock_add_pantry_item(client, name, quantity, unit):
+        saved_items.append({
+            "client": client,
+            "name": name,
+            "quantity": quantity,
+            "unit": unit,
+        })
+        return [{"id": 101, "name": name}]
+
+    monkeypatch.setattr(
+        "modules.supabase_pantry.add_pantry_item",
+        mock_add_pantry_item,
+    )
+
+    fake_client = object()
+
+    command = {
+        "action": "add",
+        "ingredient": "rice",
+        "quantity": 2,
+        "unit": "cups",
+    }
+
+    result = handle_supabase_pantry_command(
+        command,
+        fake_client,
+    )
+
+    assert saved_items == [{
+        "client": fake_client,
+        "name": "rice",
+        "quantity": 2,
+        "unit": "cups",
+    }]
+
+    assert result == [{"id": 101, "name": "rice"}]
+
+
+
+import pytest
+
+
+@pytest.mark.parametrize("command", [
+    {"action": "add", "ingredient": "", "quantity": 2, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": -2, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": 0, "unit": "cups"},
+    {"action": "add", "ingredient": "rice", "quantity": 2, "unit": ""},
+    {"action": "delete", "ingredient": "rice", "quantity": 2, "unit": "cups"},
+    None,
+])
+def test_mochi_rejects_invalid_supabase_commands(command):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    with pytest.raises(ValueError):
+        handle_supabase_pantry_command(command, object())
+
+
+
+        

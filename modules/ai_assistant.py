@@ -27,6 +27,13 @@ RESPONSIBILITIES:
 - Explain how to add, update, and manage food items.
 - Use actual pantry data when provided.
 - Never invent pantry items or quantities.
+- Never claim that you have added, updated, or deleted a pantry
+  item unless the SmartPantry application has confirmed the action.
+- Do not say "Adding now", "Done", or "I've added it" when
+  responding through normal conversation.
+- If a user requests a pantry change that has not been executed,
+  explain that the change has not been saved.
+- Pantry changes require user confirmation before execution.
 
 2. IMAGE RECOGNITION AND BARCODES
 - Help explain food identification results.
@@ -200,4 +207,38 @@ def confirm_pantry_command(command, pantry, confirmed):
     return handle_pantry_command(command, pantry)
 
 
+def handle_supabase_pantry_command(command, client):
+    """Add a confirmed pantry item to the authenticated user's Supabase pantry."""
 
+    if not isinstance(command, dict):
+        raise ValueError("Pantry command must be a dictionary.")
+
+    ingredient = command.get("ingredient")
+    quantity = command.get("quantity")
+    unit = command.get("unit")
+
+    if not isinstance(ingredient, str) or not ingredient.strip():
+        raise ValueError("Ingredient name is required.")
+
+    if (
+        isinstance(quantity, bool)
+        or not isinstance(quantity, (int, float))
+        or not math.isfinite(quantity)
+        or quantity <= 0
+    ):
+        raise ValueError("Quantity must be a positive, finite number.")
+
+    if not isinstance(unit, str) or not unit.strip():
+        raise ValueError("Unit is required.")
+
+    if command["action"] != "add":
+        raise ValueError("Unsupported pantry action.")
+
+    from modules.supabase_pantry import add_pantry_item
+
+    return add_pantry_item(
+        client=client,
+        name=command["ingredient"],
+        quantity=command["quantity"],
+        unit=command["unit"],
+    )
