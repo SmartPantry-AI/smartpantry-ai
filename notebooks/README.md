@@ -124,7 +124,45 @@ Incomplete checks are blocked by default. Limited acknowledgment behavior is ava
 
 Historical development results and current production validation are documented separately.
 
-### Role 1: Shelf-Life Data Sourcing
+## Master Integration Notebook
+
+SmartPantry AI includes a master Jupyter notebook that demonstrates the integration of the project's core components and validates their functionality through automated testing.
+
+**Notebook:** [SmartPantry Master Integration](notebooks/smartpantry_integration.ipynb)
+
+### Components Covered
+
+- Barcode recognition and product identification
+- AI-powered food image recognition
+- Food storage guidance using FoodKeeper data
+- Food recall detection
+- Recipe recommendations
+- Mochi AI assistant and pantry command validation
+- Supabase pantry database integration
+- End-to-end pantry workflow simulation
+
+### Testing and Validation
+
+The master notebook uses mocked external API responses to provide a reproducible testing environment without requiring API credentials or live database access.
+
+**Validation Results:**
+- 160 automated tests passed
+- 0 failed
+- Successfully executed from start to finish in Google Colab
+- Existing application modules remain unchanged
+
+### Running the Notebook
+
+1. Open the [Master Integration Notebook](notebooks/smartpantry_integration.ipynb) on GitHub.
+2. Open the notebook in Google Colab.
+3. Select **Runtime → Run all**.
+4. Review the component demonstrations, integration workflow, and final test results.
+
+The notebook automatically prepares the required environment and imports the existing SmartPantry modules from the GitHub repository.
+
+**Note:** External services are mocked for reproducibility. The notebook validates application logic and simulated integrations rather than performing live API transactions.
+
+### Shelf-Life Data Sourcing
 
 **Notebook:** `shelf_life_data_sourcing.ipynb`  
 **Contributor:** Hnin Aung  
