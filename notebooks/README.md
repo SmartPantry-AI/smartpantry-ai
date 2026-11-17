@@ -16,21 +16,26 @@ Where applicable, notebooks correspond to Python modules in the `modules/` direc
 
 The notebooks serve as supporting technical documentation and testing evidence. They do not replace the application's Python modules.
 
+Historical Phase 3 findings are preserved where relevant, while updated Phase 4 sections document current implementations and validation results.
+
 ## Notebook Directory
 
 ### Available Notebooks
 
 | Notebook | Corresponding Module | Description |
 |---|---|---|
-| `barcode_lookup.ipynb` | `modules/barcode_lookup.py` | Barcode decoding, Open Food Facts lookups, product identification, and negative testing |
-| `storage_guidance.ipynb` | `modules/storage_guidance.py` | FoodKeeper-based storage guidance, date validation, source-backed rules, and handling unsupported foods |
-| `recipe_recommender.ipynb` | `modules/recipe_recommender.py` | Ingredient matching, expiration-priority scoring, recipe ranking, and evaluation |
-| `image_recognition.ipynb` | `modules/image_recognition.py` | Food image recognition, recorded model evaluation, identification accuracy, and limitations |
+| `barcode_lookup.ipynb` | `modules/barcode_lookup.py` | Barcode decoding, Open Food Facts product identification, error handling, and historical integration testing |
+| `storage_guidance.ipynb` | `modules/storage_guidance.py` | FoodKeeper-based storage guidance, date validation, source-backed rules, and unsupported-food handling |
+| `recipe_recommender.ipynb` | `modules/recipe_recommender.py` | Ingredient matching, expiration-priority scoring, Spoonacular integration, recall-aware filtering, recipe alternatives, and automated testing |
+| `image_recognition.ipynb` | `modules/image_recognition.py` | Food image recognition, original 25-image evaluation, production-function validation, and documented limitations |
 | `ai_assistant.ipynb` | `modules/ai_assistant.py` | Mochi's conversational assistant, pantry command validation, confirmation safeguards, mocked testing, and Phase 4 findings |
+| `recall_checker.ipynb` | `modules/recall_checker.py` | FDA and USDA FSIS recall retrieval, product matching, recall normalization, safety-gate decisions, and automated validation |
 
 ### Mochi AI Assistant Testing
 
-The `ai_assistant.ipynb` notebook documents ten test scenarios covering:
+The `ai_assistant.ipynb` notebook documents Mochi's conversational assistant and pantry command validation.
+
+The original notebook documented ten test scenarios covering:
 
 - Structured pantry command interpretation
 - Quantity-schema validation and correction
@@ -42,17 +47,88 @@ The `ai_assistant.ipynb` notebook documents ten test scenarios covering:
 
 The notebook preserves the original quantity-validation issue and demonstrates the corrected implementation.
 
-**Testing result:** All ten tests passed when executed from a clean VS Code kernel.
+The updated Phase 4 notebook includes validation against the current production implementation.
 
-These tests use mocked OpenAI responses and pantry objects. They do not verify live API behavior, persistent database operations, or complete Streamlit integration.
+**Phase 4 validation result:** 15 of 15 tests passed.
 
-Mochi's testing notebook and quantity-schema correction were merged into `main` through PR #29.
+Testing uses controlled inputs, mocked OpenAI responses, and simulated pantry objects where appropriate.
+
+These results validate the tested assistant behaviors but do not establish complete live API reliability, persistent database correctness, or end-to-end Streamlit integration.
+
+Mochi's original testing notebook and quantity-schema correction were merged into `main` through PR #29. Subsequent notebook documentation updates are maintained separately until merged.
+
+### Recipe Recommender Testing
+
+The `recipe_recommender.ipynb` notebook documents the current production recipe recommendation system.
+
+Validation covers:
+
+- Ingredient normalization and matching
+- Expiration-priority scoring
+- Pantry coverage and recipe ranking
+- Spoonacular response conversion and integration
+- Recall-aware recipe filtering
+- Recipe alternatives
+- Missing or unverified ingredients
+- API error handling using mocked responses
+
+**Automated test result:** 22 of 22 tests passed in Google Colab.
+
+The notebook imports functions from `modules/recipe_recommender.py` and runs the corresponding automated tests.
+
+The original recipe-ranking demonstrations and historical development results are preserved.
+
+Automated tests do not require live Spoonacular API requests. Passing mocked tests does not establish live API availability or guarantee the quality of every recommendation.
+
+### Image Recognition Testing
+
+The `image_recognition.ipynb` notebook documents SmartPantry's AI-powered food identification component.
+
+The original evaluation included five baseline food images and twenty additional images with challenging lighting, positioning, and visual conditions.
+
+**Original recorded evaluation:** 25 of 25 food images were identified correctly.
+
+The Phase 4 notebook preserves those recorded results and includes additional production-function validation.
+
+**Phase 4 mocked function tests:** 2 of 2 passed.
+
+The results demonstrate successful identification within the evaluated sample. They do not establish general accuracy across all foods, packaging, environments, or image conditions.
+
+The notebook documents limitations and distinguishes historical live-model observations from current mocked validation.
+
+### Recall Checker Testing
+
+The `recall_checker.ipynb` notebook documents SmartPantry's recall detection and safety-gate component.
+
+The notebook preserves the original Phase 3 FDA research, prototype experiments, USDA investigation, and historical results while documenting the expanded Phase 4 implementation.
+
+Current functionality includes:
+
+- FDA food recall retrieval
+- USDA FSIS recall retrieval through a third-party API
+- Standardized recall records
+- Product matching using available identifying information, including names, brands, UPCs, and lot codes
+- Recall classification and prioritization
+- Recipe eligibility decisions
+- Conservative handling of incomplete recall checks
+
+The notebook includes controlled production-function validation and automated testing through `tests/test_recall_checker.py`.
+
+The Phase 4 implementation supports both FDA and USDA recall sources. However, the USDA service is accessed through a third-party endpoint rather than a direct official USDA API.
+
+**Important:** The current FDA and USDA retrieval functions report `check_status="INCOMPLETE"`. Successful retrieval does not establish complete recall verification.
+
+Products classified as `POSSIBLE_MATCH` or `RECALLED` are blocked by the recipe safety gate.
+
+Incomplete checks are blocked by default. Limited acknowledgment behavior is available for eligible nonmatching results, but acknowledgment does not establish product safety or override a possible or confirmed recall match.
+
+Historical development results and current production validation are documented separately.
 
 ### Role 1: Shelf-Life Data Sourcing
 
 **Notebook:** `shelf_life_data_sourcing.ipynb`  
 **Contributor:** Hnin Aung  
-**Status:** Completed by contributor; awaiting PR #30 review and merge.
+**Status:** Completed by contributor; PR #30 review and merge status requires confirmation.
 
 This notebook supports the storage-guidance component by researching and documenting shelf-life information from USDA FoodKeeper and supplementary Oregon State University Extension guidance.
 
@@ -66,21 +142,13 @@ Its responsibilities include:
 - Recording source attribution
 - Exporting research data for review
 
-The contributor reports successful execution from a clean kernel, with five of five validation checks passing.
+The contributor reported successful execution from a clean kernel, with five of five validation checks passing.
 
 **Important:** This notebook is a research and data-preparation component. Its exported dataset is separate from the processed data currently used by the application.
 
 The notebook's export should be reviewed and validated before any values are incorporated into application datasets.
 
 The notebook supports `modules/storage_guidance.py` but does not replace that module.
-
-### Notebook Pending Contributor Revision
-
-| Current Filename | Planned Filename | Corresponding Module | Description |
-|---|---|---|---|
-| `SmartPantry_Recall_Test.ipynb` | `recall_checker.ipynb` | `modules/recall_checker.py` | FDA recall retrieval, product matching, safety-status handling, and testing |
-
-The recall notebook will be standardized after its contributor's revisions are completed and reviewed.
 
 ### Planned Phase 4 Notebook
 
@@ -102,6 +170,8 @@ The master integration notebook is planned and has not yet been added to the rep
 **Note:** Some notebooks import Python modules or read files from the repository. Opening an individual notebook in Colab does not automatically make the entire repository available.
 
 Clone or otherwise provide the required project files before running those notebooks.
+
+When validating notebook changes that have not yet been merged into `main`, use the corresponding development branch to ensure the notebook and imported files match.
 
 ### Jupyter Notebook / JupyterLab / VS Code
 
@@ -132,6 +202,10 @@ Whenever possible, demonstrations should use controlled sample data or recorded 
 Live API tests should be optional and clearly identified. Simulated results must not be presented as live verification.
 
 Saved test results should distinguish expected behavior from observed behavior, and a successful demonstration should not be described as broader validation than the tests support.
+
+Historical Phase 3 code may be preserved as non-executable documentation when its purpose is to demonstrate the original development process rather than execute against the current production implementation.
+
+Current Phase 4 validation sections should import and test the production modules rather than duplicate outdated implementations.
 
 Notebooks intended for reproducible execution should be verified from a clean kernel before submission.
 
@@ -166,6 +240,20 @@ SmartPantry uses source-backed storage guidance and recall information.
 USDA FoodKeeper is a primary source for storage research. Oregon State University Extension provides supplementary research where additional food-specific guidance is available.
 
 Documentation of a source does not necessarily mean its values have been integrated into the live application.
+
+### Recall Verification Limitations
+
+SmartPantry currently retrieves FDA recall information through the FDA API and USDA FSIS recall information through a third-party service.
+
+Both retrieval functions report incomplete verification status. A successful API response or absence of matching recall records must not be interpreted as confirmation that a product is recall-free.
+
+The recipe safety gate blocks confirmed or possible recall matches.
+
+Incomplete checks are blocked by default, with limited acknowledgment behavior supported for eligible nonmatching results.
+
+Acknowledgment does not change the underlying verification status or permit potentially recalled products.
+
+Recall information is intended to support user awareness and safety decisions, not provide a guarantee of food safety.
 
 These limitations should remain visible in the relevant notebooks and application demonstrations.
 
