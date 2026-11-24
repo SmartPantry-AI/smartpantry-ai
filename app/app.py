@@ -1104,6 +1104,17 @@ if selected_page == "📷 Scan Food":
                         st.warning(error)
                     elif product:
                         st.session_state.identified_barcode_product = product
+
+                        st.session_state.confirmed_barcode_name = (
+                            product.get("product_name") or ""
+                        )
+                        st.session_state.confirmed_barcode_quantity = 1
+                        st.session_state.confirmed_barcode_unit = "item"
+                        st.session_state.confirmed_barcode_purchase_date = None
+                        st.session_state.confirmed_barcode_expiration_date = None
+                        st.session_state.confirmed_barcode_storage_location = ""
+                        st.session_state.confirmed_barcode_lot_code = ""
+
                         st.success("Product identified!")
                         st.write("Product:", product.get("product_name"))
                         st.write("Brand:", product.get("brand"))
@@ -1150,6 +1161,29 @@ if selected_page == "📷 Scan Food":
                     key="confirmed_barcode_unit"
                 )
 
+            confirmed_purchase_date = st.date_input(
+                "Purchase date (optional)",
+                value=None,
+                key="confirmed_barcode_purchase_date"
+            )
+
+            confirmed_expiration_date = st.date_input(
+                "Expiration date (optional)",
+                value=None,
+                key="confirmed_barcode_expiration_date"
+            )
+
+            confirmed_storage_location = st.selectbox(
+                "Storage location (optional)",
+                ["", "PANTRY", "REFRIGERATOR", "FREEZER"],
+                key="confirmed_barcode_storage_location"
+            )
+
+            confirmed_lot_code = st.text_input(
+                "Lot code (optional)",
+                key="confirmed_barcode_lot_code"
+            )
+
             if st.button(
                 "✅ Confirm and Add to Pantry",
                 type="primary",
@@ -1163,7 +1197,19 @@ if selected_page == "📷 Scan Food":
                             st.session_state.supabase_client,
                             confirmed_name.strip(),
                             confirmed_quantity,
-                            confirmed_unit
+                            confirmed_unit,
+                            purchase_date=(
+                                confirmed_purchase_date.isoformat()
+                                if confirmed_purchase_date else None
+                            ),
+                            expiration_date=(
+                                confirmed_expiration_date.isoformat()
+                                if confirmed_expiration_date else None
+                            ),
+                            storage_location=confirmed_storage_location or None,
+                            brand=product_to_confirm.get("brand"),
+                            upc=product_to_confirm.get("barcode"),
+                            lot_code=confirmed_lot_code.strip() or None,
                         )
 
                         st.session_state.pantry_manager = PantryManager()

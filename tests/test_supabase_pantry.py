@@ -61,6 +61,9 @@ def test_add_pantry_item():
         "expiration_date": None,
         "storage_location": None,
         "prepared_date": None,
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -91,6 +94,9 @@ def test_add_pantry_item_with_dates():
         "expiration_date": "2026-11-24",
         "storage_location": None,
         "prepared_date": None,
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -128,6 +134,9 @@ def test_add_pantry_item_with_prepared_date():
         "expiration_date": None,
         "storage_location": "REFRIGERATOR",
         "prepared_date": "2026-11-13",
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -266,6 +275,9 @@ def test_add_pantry_item_with_storage_location():
         "expiration_date": None,
         "storage_location": "REFRIGERATOR",
         "prepared_date": None,
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -282,4 +294,47 @@ def test_add_pantry_item_with_storage_location():
 
     client.table.assert_called_once_with("pantry_items")
     client.table.return_value.insert.assert_called_once_with(expected_item)
-    assert result == [expected_item]       
+    assert result == [expected_item]  
+
+
+def test_add_pantry_item_with_product_metadata():
+    """Verify that product identification metadata is saved."""
+
+    client = MagicMock()
+    client.auth.get_user.return_value.user.id = "test-user-123"
+
+    expected_item = {
+        "user_id": "test-user-123",
+        "name": "Whole Milk",
+        "quantity": 1,
+        "unit": "item",
+        "purchase_date": None,
+        "expiration_date": None,
+        "storage_location": None,
+        "prepared_date": None,
+        "brand": "Test Brand",
+        "upc": "012345678905",
+        "lot_code": "LOT123",
+    }
+
+    client.table.return_value.insert.return_value.execute.return_value.data = [
+        expected_item
+    ]
+
+    result = add_pantry_item(
+        client,
+        "Whole Milk",
+        1,
+        "item",
+        brand="Test Brand",
+        upc="012345678905",
+        lot_code="LOT123",
+    )
+
+    client.table.assert_called_once_with("pantry_items")
+    client.table.return_value.insert.assert_called_once_with(expected_item)
+
+    assert result == [expected_item]
+
+
+     
