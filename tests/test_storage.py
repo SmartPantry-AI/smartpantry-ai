@@ -425,4 +425,57 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def test_adapt_pantry_item_with_storage_metadata():
+    """Verify that the adapter preserves condition-specific metadata."""
+
+    pantry_item = {
+        "id": 101,
+        "name": "Chicken breast",
+        "storage_location": "REFRIGERATOR",
+        "purchase_date": date(2026, 11, 20),
+        "prepared_date": None,
+        "food_classification": "REGULAR",
+        "preparation_state": "RAW",
+        "package_state": "OPENED",
+        "opened_date": date(2026, 11, 24),
+        "thawed_date": date(2026, 11, 24),
+    }
+
+    result = adapt_pantry_item(pantry_item)
+
+    assert result["item_id"] == 101
+    assert result["food_type"] == "Chicken breast"
+    assert result["storage_location"] == "REFRIGERATOR"
+    assert result["purchase_date"] == "2026-11-20"
+    assert result["prepared_date"] is None
+    assert result["food_classification"] == "REGULAR"
+    assert result["preparation_state"] == "RAW"
+    assert result["package_state"] == "OPENED"
+    assert result["opened_date"] == "2026-11-24"
+    assert result["thawed_date"] == "2026-11-24"
+
+def test_adapt_pantry_item_without_storage_metadata():
+    """Verify compatibility with older pantry records."""
+
+    pantry_item = {
+        "id": 102,
+        "name": "Apple",
+        "storage_location": "REFRIGERATOR",
+        "purchase_date": "2026-11-20",
+    }
+
+    result = adapt_pantry_item(pantry_item)
+
+    assert result["item_id"] == 102
+    assert result["food_type"] == "Apple"
+    assert result["storage_location"] == "REFRIGERATOR"
+    assert result["purchase_date"] == "2026-11-20"
+    assert result["prepared_date"] is None
+    assert result["food_classification"] is None
+    assert result["preparation_state"] is None
+    assert result["package_state"] is None
+    assert result["opened_date"] is None
+    assert result["thawed_date"] is None
+
+
   

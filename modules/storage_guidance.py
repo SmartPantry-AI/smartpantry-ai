@@ -156,7 +156,17 @@ def adapt_pantry_item(pantry_item):
     prepared_date = pantry_item.get("prepared_date")
 
     if isinstance(prepared_date, date):
-        prepared_date = prepared_date.isoformat()    
+        prepared_date = prepared_date.isoformat()
+
+    opened_date = pantry_item.get("opened_date")
+
+    if isinstance(opened_date, date):
+        opened_date = opened_date.isoformat()
+
+    thawed_date = pantry_item.get("thawed_date")
+
+    if isinstance(thawed_date, date):
+        thawed_date = thawed_date.isoformat()    
 
     return {
         "item_id": pantry_item["id"],
@@ -164,6 +174,11 @@ def adapt_pantry_item(pantry_item):
         "storage_location": pantry_item.get("storage_location"),
         "purchase_date": purchase_date,
         "prepared_date": prepared_date,
+        "food_classification": pantry_item.get("food_classification"),
+        "preparation_state": pantry_item.get("preparation_state"),
+        "package_state": pantry_item.get("package_state"),
+        "opened_date": opened_date,
+        "thawed_date": thawed_date,
     }
 
 
