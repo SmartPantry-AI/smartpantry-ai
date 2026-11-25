@@ -1261,6 +1261,9 @@ if selected_page == "🧊 Food Safety":
         st.write("Pantry items retrieved:", len(pantry_items))
 
         if pantry_items:
+            usda_matches = []
+            seen_matches = set()
+
             with st.spinner("Retrieving USDA recall records..."):
                 usda_result = get_usda_recalls()
 
@@ -1274,9 +1277,6 @@ if selected_page == "🧊 Food Safety":
                     "USDA records retrieved:",
                     len(usda_result["records"])
                 )
-
-                usda_matches = []
-                seen_matches = set()
 
                 for item in pantry_items:
                     product = {
@@ -1327,105 +1327,141 @@ if selected_page == "🧊 Food Safety":
                     "and zero matches does not establish food safety."
                 )
 
-                unique_product_names = sorted({
-                    item["name"].strip()
-                    for item in pantry_items
-                    if item.get("name") and item["name"].strip()
-                })[:2]
+            unique_product_names = sorted({
+                item["name"].strip()
+                for item in pantry_items
+                if item.get("name") and item["name"].strip()
+            })
 
-                fda_records = []
-                fda_errors = []
+            fda_records = []
+            fda_errors = []
 
-                with st.spinner("Searching FDA recalls for pantry products..."):
-                    for product_name in unique_product_names:
-                        result = get_fda_recalls(product_name, limit=10)
+            with st.spinner("Searching FDA recalls for pantry products..."):
+                for product_name in unique_product_names:
+                    result = get_fda_recalls(product_name, limit=10)
 
-                        if result["error"]:
-                            fda_errors.append(product_name)
-                        else:
-                            fda_records.extend(result["records"])
+                    if result["error"]:
+                        fda_errors.append(product_name)
+                    else:
+                        fda_records.extend(result["records"])
 
-                st.write(
-                    "FDA recall records retrieved:",
-                    len(fda_records)
-                )
+            st.write(
+                "FDA recall records retrieved:",
+                len(fda_records)
+            )
 
-                fda_matches = []
-                seen_fda_matches = set()
+            fda_matches = []
+            seen_fda_matches = set()
 
-                for item in pantry_items:
-                    if item["name"].strip() not in unique_product_names:
-                        continue
+            for item in pantry_items:
+                if item["name"].strip() not in unique_product_names:
+                    continue
 
-                    product = {
-                        "product_name": item["name"],
-                        "brand": item.get("brand"),
-                        "upc": item.get("upc"),
-                        "lot_code": item.get("lot_code"),
-                    }
-
-                    for recall in fda_records:
-                        result = match_recall_to_product(product, recall)
-
-                        if result["status"] == "POSSIBLE_MATCH":
-                            match_key = (
-                                item["id"],
-                                recall.get("recall_number"),
-                            )
-
-                            if match_key not in seen_fda_matches:
-                                seen_fda_matches.add(match_key)
-                                fda_matches.append({
-                                    "product": item["name"],
-                                    "recall": recall,
-                                })
-
-                st.write(
-                    "FDA product-name overlaps requiring verification:",
-                    len(fda_matches)
-                )
-
-                if fda_matches:
-                    with st.expander("Review FDA product-name overlaps"):
-                        for match in fda_matches[:10]:
-                            st.write("Pantry item:", match["product"])
-                            st.write(
-                                "Recall:",
-                                match["recall"].get("product_description")
-                            )
-                            st.write(
-                                "Recall number:",
-                                match["recall"].get("recall_number")
-                            )
-                            st.divider()
-
-                st.caption(
-                    "FDA screening covers only two pantry product names "
-                    "and up to ten search records per name. "
-                    "Results require product verification."
-                )
-
-                st.session_state["pantry_recall_screening"] = {
-                    "pantry_item_ids": sorted(
-                        item["id"] for item in pantry_items
-                    ),
-                    "usda_records_checked": len(usda_result["records"]),
-                    "usda_name_overlaps": len(usda_matches),
-                    "fda_records_checked": len(fda_records),
-                    "fda_name_overlaps": len(fda_matches),
-                    "fda_searches_failed": len(fda_errors),
-                    "status": "INCOMPLETE",
+                product = {
+                    "product_name": item["name"],
+                    "brand": item.get("brand"),
+                    "upc": item.get("upc"),
+                    "lot_code": item.get("lot_code"),
                 }
 
-                st.write(
-                    "FDA searches that could not be completed:",
-                    len(fda_errors)
-                )
+                for recall in fda_records:
+                    result = match_recall_to_product(product, recall)
 
-                st.caption(
-                    "FDA searches use pantry product names. Retrieved records "
-                    "are not confirmed matches to your specific products."
+                    if result["status"] == "POSSIBLE_MATCH":
+                        match_key = (
+                            item["id"],
+                            recall.get("recall_number"),
+                        )
+
+                        if match_key not in seen_fda_matches:
+                            seen_fda_matches.add(match_key)
+                            fda_matches.append({
+                                "product": item["name"],
+                                "recall": recall,
+                            })
+
+            st.write(
+                "FDA potential recall matches requiring verification:",
+                len(fda_matches)
+            )
+
+            recall_status_priority = {
+                "ongoing": 0,
+                "unknown": 1,
+                "completed": 2,
+                "terminated": 3,
+            }
+
+            fda_matches.sort(
+                key=lambda match: recall_status_priority.get(
+                    str(
+                        match["recall"].get("recall_status", "UNKNOWN")
+                    ).strip().casefold(),
+                    1
                 )
+            )
+
+            if fda_matches:
+                with st.expander("Review FDA potential recall matches"):
+                    for match in fda_matches:
+                        st.write("Pantry item:", match["product"])
+                        st.write(
+                            "Recall:",
+                            match["recall"].get("product_description")
+                        )
+                        st.write(
+                            "Recall number:",
+                            match["recall"].get("recall_number")
+                        )
+
+                        st.write(
+                            "Recall status:",
+                            match["recall"].get("recall_status", "UNKNOWN")
+                        )
+
+                        if match["recall"].get("upcs"):
+                            st.write(
+                                "Recalled UPCs:",
+                                ", ".join(match["recall"]["upcs"])
+                            )
+
+                        if match["recall"].get("lot_codes"):
+                            st.write(
+                                "Recalled lot codes:",
+                                ", ".join(match["recall"]["lot_codes"])
+                            )
+
+                        st.divider()
+
+            st.caption(
+                f"FDA screening searches {len(unique_product_names)} distinct "
+                "pantry product names and retrieves up to ten recall records "
+                "per name. Screening remains incomplete, and potential "
+                "matches require product verification."
+            )
+
+            st.session_state["pantry_recall_screening"] = {
+                "pantry_item_ids": sorted(
+                    item["id"] for item in pantry_items
+                ),
+                "usda_records_checked": len(usda_result["records"]),
+                "usda_name_overlaps": len(usda_matches),
+                "usda_retrieval_failed": bool(usda_result["error"]),
+                "fda_records_checked": len(fda_records),
+                "fda_name_overlaps": len(fda_matches),
+                "fda_searches_failed": len(fda_errors),
+                "status": "INCOMPLETE",
+            }
+
+            st.write(
+                "FDA searches that could not be completed:",
+                len(fda_errors)
+            )
+
+            st.caption(
+                "FDA searches use pantry product names. Retrieved records "
+                "are not confirmed matches to your specific products."
+            )
 
         else:
             st.info("Your pantry is empty. Add an item before screening.")

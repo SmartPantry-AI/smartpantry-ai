@@ -1,5 +1,5 @@
 from modules.recall_checker import normalize_recall_record
-
+from modules.recall_checker import match_recall_to_product
 
 def test_normalize_recall_record():
     record = {
@@ -997,3 +997,432 @@ def test_generic_ingredient_does_not_match_prepared_food():
     result = match_recall_to_product(product, recall)
 
     assert result["status"] == "NO_MATCH"    
+
+
+def test_extract_fda_upc_standard():
+    from modules.recall_checker import extract_fda_upcs
+
+    text = "Dole Baby Spinach UPC 071430009642;"
+
+    assert extract_fda_upcs(text) == ["071430009642"]
+
+
+def test_extract_fda_upc_formatted():
+    from modules.recall_checker import extract_fda_upcs
+
+    text = "Sno Pac Frozen Vegetables, UPC 0 24284-96910 5."
+
+    assert extract_fda_upcs(text) == ["024284969105"]
+
+
+def test_extract_fda_multiple_upcs():
+    from modules.recall_checker import extract_fda_upcs
+
+    text = (
+        "Sno Pac UPC 0 24284-96910 5. "
+        "Maika'i UPC 6 18551-60436 5."
+    )
+
+    assert extract_fda_upcs(text) == [
+        "024284969105",
+        "618551604365",
+    ]
+
+
+def test_extract_fda_upc_hyphenated():
+    from modules.recall_checker import extract_fda_upcs
+
+    text = "UPC: 8-84038-85102-1, Item no. 85102"
+
+    assert extract_fda_upcs(text) == ["884038851021"]
+
+
+def test_extract_fda_upc_invalid_length():
+    from modules.recall_checker import extract_fda_upcs
+
+    text = "UPC: 85239058107"
+
+    assert extract_fda_upcs(text) == []
+
+
+def test_extract_fda_upc_missing():
+    from modules.recall_checker import extract_fda_upcs
+
+    assert extract_fda_upcs(None) == []
+    assert extract_fda_upcs("") == []
+    assert extract_fda_upcs("Product Code 011596559025") == []
+
+
+def test_extract_fda_lot_code_standard():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    text = "Lot Code SPM1.190.5 with a Best By 07/09/27."
+
+    assert extract_fda_lot_codes(text) == ["SPM1.190.5"]
+
+
+def test_extract_fda_multiple_lot_codes():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    text = (
+        "Lot Code SPM1.190.5 with a Best By 07/09/27. "
+        "Lot Code SPC1.160.5 with a Best By 06/09/27. "
+        "Lot Code SPC2.160.5 with Best By 06/09/27. "
+        "Lot Code SPM1.097.5 with Best By 04/07/27."
+    )
+
+    assert extract_fda_lot_codes(text) == [
+        "SPM1.190.5",
+        "SPC1.160.5",
+        "SPC2.160.5",
+        "SPM1.097.5",
+    ]
+
+
+def test_extract_fda_lot_code_hyphenated():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    text = "Lot Code: LOT-A123"
+
+    assert extract_fda_lot_codes(text) == ["LOT-A123"]
+
+
+def test_extract_fda_lot_code_case_insensitive():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    text = "lot code spm1.190.5"
+
+    assert extract_fda_lot_codes(text) == ["SPM1.190.5"]
+
+
+def test_extract_fda_lot_code_duplicates():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    text = "Lot Code ABC123. Lot Code abc123."
+
+    assert extract_fda_lot_codes(text) == ["ABC123"]
+
+
+def test_extract_fda_lot_code_missing():
+    from modules.recall_checker import extract_fda_lot_codes
+
+    assert extract_fda_lot_codes(None) == []
+    assert extract_fda_lot_codes("") == []
+    assert extract_fda_lot_codes("Best By 07/09/27") == []
+    assert extract_fda_lot_codes("Bag Code B2311020") == []    
+
+
+def test_normalize_fda_recall_single_upc():
+    from modules.recall_checker import normalize_fda_recall
+
+    record = {
+        "recall_number": "F-2441-2014",
+        "status": "Terminated",
+        "recalling_firm": "Dole Fresh Vegetables Inc",
+        "product_description": "Dole Baby Spinach UPC 071430009642;",
+        "code_info": "Bag Code B2311020",
+        "more_code_info": "",
+    }
+
+    result = normalize_fda_recall(record)
+
+    assert result["source"] == "FDA"
+    assert result["recall_id"] == "F-2441-2014"
+    assert result["upc"] == "071430009642"
+    assert result["upcs"] == ["071430009642"]
+    assert result["recall_status"] == "Terminated"
+    assert result["brand"] is None
+    assert result["recalling_firm"] == "Dole Fresh Vegetables Inc"
+    assert result["code_info"] == record["code_info"]
+    assert result["product_description"] == record["product_description"]
+
+
+def test_normalize_fda_recall_multiple_identifiers():
+    from modules.recall_checker import normalize_fda_recall
+
+    record = {
+        "recall_number": "H-0109-2026",
+        "status": "Terminated",
+        "product_description": (
+            "Sno Pac UPC 0 24284-96910 5. "
+            "Maika'i UPC 6 18551-60436 5."
+        ),
+        "code_info": (
+            "Lot Code SPM1.190.5 with Best By 07/09/27. "
+            "Lot Code SPC1.160.5 with Best By 06/09/27."
+        ),
+        "more_code_info": "",
+    }
+
+    result = normalize_fda_recall(record)
+
+    assert result["upc"] is None
+    assert result["upcs"] == [
+        "024284969105",
+        "618551604365",
+    ]
+    assert result["lot_codes"] == [
+        "SPM1.190.5",
+        "SPC1.160.5",
+    ]
+
+def test_normalize_fda_recall_identifiers_across_fields():
+    from modules.recall_checker import normalize_fda_recall
+
+    record = {
+        "recall_number": "TEST-FDA-001",
+        "product_description": "Frozen Smoothies",
+        "code_info": "UPC: 8-84038-85102-1",
+        "more_code_info": "Lot Code ABC123",
+    }
+
+    result = normalize_fda_recall(record)
+
+    assert result["upc"] == "884038851021"
+    assert result["upcs"] == ["884038851021"]
+    assert result["lot_codes"] == ["ABC123"]
+
+
+def test_normalize_fda_recall_missing_metadata():
+    from modules.recall_checker import normalize_fda_recall
+
+    record = {
+        "recall_number": "TEST-FDA-002",
+        "product_description": "Frozen Vegetables",
+        "code_info": None,
+        "more_code_info": None,
+    }
+
+    result = normalize_fda_recall(record)
+
+    assert result["upc"] is None
+    assert result["upcs"] == []
+    assert result["lot_codes"] == []
+    assert result["brand"] is None
+    assert result["recall_status"] == "UNKNOWN"
+    assert result["recalling_firm"] is None
+    assert result["code_info"] is None
+
+def test_recall_matching_multiple_upcs():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Frozen Spinach",
+        "upc": "618551604365",
+    }
+
+    recall = {
+        "product_description": "Frozen Organic Vegetables",
+        "upc": None,
+        "upcs": ["024284969105", "618551604365"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+def test_recall_multiple_upcs_no_match():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Milk",
+        "upc": "111111111111",
+    }
+
+    recall = {
+        "product_description": "Frozen Spinach",
+        "upcs": ["024284969105", "618551604365"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"
+
+def test_recall_multiple_upcs_conflicting_lot():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Milk",
+        "upc": "111111111111",
+        "lot_code": "ABC123",
+    }
+
+    recall = {
+        "product_description": "Frozen Spinach",
+        "upcs": ["024284969105", "618551604365"],
+        "lot_codes": ["ABC123"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"
+
+def test_recall_multiple_upcs_missing_product_upc():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Frozen Spinach",
+        "upc": None,
+        "lot_code": "ABC123",
+    }
+
+    recall = {
+        "product_description": "Frozen Organic Vegetables",
+        "upcs": ["024284969105", "618551604365"],
+        "lot_codes": ["ABC123"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+def test_fda_retrieval_normalizes_metadata(monkeypatch):
+    from modules.recall_checker import get_fda_recalls
+
+    class MockResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "recall_number": "TEST-FDA-001",
+                        "status": "Ongoing",
+                        "product_description": "Frozen Spinach UPC 024284969105",
+                        "code_info": "Lot Code SPM1.190.5",
+                    }
+                ]
+            }
+
+    def mock_get(url, params, timeout):
+        return MockResponse()
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        mock_get,
+    )
+
+    result = get_fda_recalls("spinach")
+    record = result["records"][0]
+
+    assert result["error"] is None
+    assert result["check_status"] == "INCOMPLETE"
+    assert record["source"] == "FDA"
+    assert record["upcs"] == ["024284969105"]
+    assert record["lot_codes"] == ["SPM1.190.5"]
+    assert record["recall_status"] == "Ongoing"
+
+def test_fda_pagination_normalizes_metadata(monkeypatch):
+    from modules.recall_checker import get_fda_recalls
+
+    requested_offsets = []
+
+    class MockResponse:
+        status_code = 200
+
+        def __init__(self, data):
+            self.data = data
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self.data
+
+    def mock_get(url, params, timeout):
+        skip = params.get("skip", 0)
+        requested_offsets.append(skip)
+
+        if skip == 0:
+            records = [
+                {
+                    "recall_number": f"TEST-FDA-{i}",
+                    "product_description": "Spinach UPC 024284969105",
+                }
+                for i in range(10)
+            ]
+
+        elif skip == 10:
+            records = [
+                {
+                    "recall_number": "TEST-FDA-10",
+                    "product_description": "Spinach UPC 618551604365",
+                    "code_info": "Lot Code ABC123",
+                }
+            ]
+
+        else:
+            raise AssertionError(f"Unexpected offset: {skip}")
+
+        return MockResponse({
+            "meta": {"results": {"total": 11}},
+            "results": records,
+        })
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        mock_get,
+    )
+
+    result = get_fda_recalls("spinach")
+
+    assert requested_offsets == [0, 10]
+    assert len(result["records"]) == 11
+    assert result["error"] is None
+    assert result["records"][0]["upcs"] == ["024284969105"]
+    assert result["records"][10]["upcs"] == ["618551604365"]
+    assert result["records"][10]["lot_codes"] == ["ABC123"]
+
+def test_generic_carrots_reject_unrelated_product():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Carrots",
+    }
+
+    recall = {
+        "product_description": "Tuna salad containing carrots and onions",
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "NO_MATCH"
+
+
+def test_generic_carrots_with_matching_upc():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Carrots",
+        "upc": "012345678905",
+    }
+
+    recall = {
+        "product_description": "Packaged carrots",
+        "upcs": ["012345678905"],
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+    
+def test_generic_carrots_direct_product_match():
+    from modules.recall_checker import match_recall_to_product
+
+    product = {
+        "product_name": "Carrots",
+    }
+
+    recall = {
+        "product_description": "Fresh whole carrots, 2 lb bag",
+    }
+
+    result = match_recall_to_product(product, recall)
+
+    assert result["status"] == "POSSIBLE_MATCH"
+
+
+
