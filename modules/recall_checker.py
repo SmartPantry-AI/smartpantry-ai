@@ -55,6 +55,18 @@ def match_recall_to_product(product, recall):
     generic_ingredients = {
         "rice",
         "spinach",
+        "carrot",
+        "carrots",
+        "apple",
+        "apples",
+        "tomato",
+        "tomatoes",
+        "asparagus",
+        "onion",
+        "onions",
+        "garlic",
+        "bay leaf",
+        "bay leaves",
     }
 
     generic_name = (
@@ -71,12 +83,24 @@ def match_recall_to_product(product, recall):
     product_upc = product.get("upc")
     recall_upc = recall.get("upc")
 
+    recall_upcs = recall.get("upcs") or []
+
+    if not isinstance(recall_upcs, list):
+        recall_upcs = []
+
+    if isinstance(recall_upc, str) and recall_upc.strip():
+        recall_upcs = [*recall_upcs, recall_upc]
+
+    normalized_recall_upcs = {
+        upc.strip()
+        for upc in recall_upcs
+        if isinstance(upc, str) and upc.strip()
+    }
+
     if (
         isinstance(product_upc, str)
-        and isinstance(recall_upc, str)
         and product_upc.strip()
-        and recall_upc.strip()
-        and product_upc.strip() == recall_upc.strip()
+        and product_upc.strip() in normalized_recall_upcs
     ):
         return {"status": "POSSIBLE_MATCH"}
 
@@ -86,12 +110,12 @@ def match_recall_to_product(product, recall):
         and isinstance(recall_lots, list)
         and not (
             isinstance(product_upc, str)
-            and isinstance(recall_upc, str)
             and product_upc.strip()
-            and recall_upc.strip()
-            and product_upc.strip() != recall_upc.strip()
+            and normalized_recall_upcs
+            and product_upc.strip() not in normalized_recall_upcs
         )
     ):   
+        
         normalized_lots = [
             lot.strip().casefold()
             for lot in recall_lots
@@ -132,6 +156,19 @@ def match_recall_to_product(product, recall):
 
     if name_matches and (brands_match or not brands_available):
         if not generic_name or brands_match:
+            return {"status": "POSSIBLE_MATCH"}
+
+        direct_product_pattern = (
+            r"^\s*(?:(?:fresh|frozen|organic|whole|raw|baby)\s+)*"
+            + re.escape(product_name.strip())
+            + r"\b"
+        )
+
+        if re.search(
+            direct_product_pattern,
+            recall_description,
+            re.IGNORECASE
+        ):
             return {"status": "POSSIBLE_MATCH"}
 
     if (
@@ -311,7 +348,10 @@ def get_fda_recalls(search_term, limit=None):
             "error": "Invalid FDA response: missing or empty recall_number",
         }
 
-    all_records.extend(records)
+    all_records.extend(
+        normalize_fda_recall(record)
+        for record in records
+    )
 
     while (
         isinstance(total_records, int)
@@ -396,7 +436,10 @@ def get_fda_recalls(search_term, limit=None):
                 "error": "Invalid FDA pagination response: records exceed reported total",
             }
 
-        all_records.extend(next_page_records)
+        all_records.extend(
+            normalize_fda_recall(record)
+            for record in next_page_records
+        )
 
     return {
         "check_status": "INCOMPLETE",
@@ -404,6 +447,73 @@ def get_fda_recalls(search_term, limit=None):
         "error": None,
     }
 
+def extract_fda_upcs(text):
+    """Extract explicitly labeled UPCs from FDA recall text."""
+
+    if not isinstance(text, str):
+        return []
+
+    pattern = r"\bUPC(?:[- ]?A)?\s*:?\s*([0-9][0-9 \t-]*[0-9])"
+
+    matches = re.findall(pattern, text, re.IGNORECASE)
+
+    upcs = []
+
+    for match in matches:
+        normalized = re.sub(r"\D", "", match)
+
+        if len(normalized) == 12 and normalized not in upcs:
+            upcs.append(normalized)
+
+    return upcs
+
+def extract_fda_lot_codes(text):
+    """Extract explicitly labeled lot codes from FDA recall text."""
+
+    if not isinstance(text, str):
+        return []
+
+    pattern = r"\bLot\s+Code\s*:?\s*([A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)"
+
+    matches = re.findall(pattern, text, re.IGNORECASE)
+
+    lot_codes = []
+
+    for match in matches:
+        normalized = match.upper()
+
+        if normalized not in lot_codes:
+            lot_codes.append(normalized)
+
+    return lot_codes
+
+def normalize_fda_recall(record):
+    """Convert an FDA record into SmartPantry's recall format."""
+
+    product_description = record.get("product_description") or ""
+    code_info = record.get("code_info") or ""
+    more_code_info = record.get("more_code_info") or ""
+
+    combined_text = " ".join([
+        product_description,
+        code_info,
+        more_code_info,
+    ])
+
+    upcs = extract_fda_upcs(combined_text)
+    lot_codes = extract_fda_lot_codes(combined_text)
+
+    return {
+        **record,
+        "source": "FDA",
+        "recall_id": record.get("recall_number"),
+        "brand": None,
+        "upc": upcs[0] if len(upcs) == 1 else None,
+        "upcs": upcs,
+        "lot_codes": lot_codes,
+        "recall_status": record.get("status") or "UNKNOWN",
+        "recalling_firm": record.get("recalling_firm"),
+    }
 
 def normalize_usda_recall(record):
     """Convert a USDA API record into SmartPantry's recall format."""
