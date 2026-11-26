@@ -1163,10 +1163,31 @@ if selected_page == "📷 Scan Food":
         st.subheader("📦 Barcode Product Lookup")
         st.caption("Scan a product barcode to retrieve its details from Open Food Facts.")
 
+        def clear_barcode_recognition():
+            st.session_state.identified_barcode_product = None
+
+            for key in (
+                "confirmed_barcode_name",
+                "confirmed_barcode_quantity",
+                "confirmed_barcode_unit",
+                "confirmed_barcode_purchase_date",
+                "confirmed_barcode_expiration_date",
+                "confirmed_barcode_storage_location",
+                "confirmed_barcode_lot_code",
+                "confirmed_barcode_food_classification",
+                "confirmed_barcode_preparation_state",
+                "confirmed_barcode_package_state",
+                "confirmed_barcode_prepared_date",
+                "confirmed_barcode_opened_date",
+                "confirmed_barcode_thawed_date",
+            ):
+                st.session_state.pop(key, None)
+
         barcode_image = st.file_uploader(
             "Upload a photo of a product barcode",
             type=["jpg", "jpeg", "png"],
-            key="barcode_upload"
+            key="barcode_upload",
+            on_change=clear_barcode_recognition,
         )
 
         if barcode_image is not None:
@@ -1211,6 +1232,13 @@ if selected_page == "📷 Scan Food":
                         st.session_state.confirmed_barcode_expiration_date = None
                         st.session_state.confirmed_barcode_storage_location = ""
                         st.session_state.confirmed_barcode_lot_code = ""
+
+                        st.session_state.confirmed_barcode_food_classification = ""
+                        st.session_state.confirmed_barcode_preparation_state = ""
+                        st.session_state.confirmed_barcode_package_state = ""
+                        st.session_state.confirmed_barcode_prepared_date = None
+                        st.session_state.confirmed_barcode_opened_date = None
+                        st.session_state.confirmed_barcode_thawed_date = None
 
                         st.success("Product identified!")
                         st.write("Product:", product.get("product_name"))
@@ -1281,6 +1309,69 @@ if selected_page == "📷 Scan Food":
                 key="confirmed_barcode_lot_code"
             )
 
+            confirmed_food_classification = st.selectbox(
+                "Food classification",
+                options=["", "REGULAR", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REGULAR": "Regular ingredient",
+                    "COOKED": "Cooked food / leftovers",
+                }[value],
+                key="confirmed_barcode_food_classification",
+            )
+
+            confirmed_prepared_date = None
+
+            if confirmed_food_classification == "COOKED":
+                confirmed_prepared_date = st.date_input(
+                    "Date prepared",
+                    value=None,
+                    max_value=date.today(),
+                    key="confirmed_barcode_prepared_date",
+                )
+
+            confirmed_preparation_state = st.selectbox(
+                "Preparation state",
+                options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "WHOLE": "Whole",
+                    "CUT": "Cut / sliced",
+                    "RAW": "Raw",
+                    "COOKED": "Cooked",
+                }[value],
+                key="confirmed_barcode_preparation_state",
+            )
+
+            confirmed_package_state = st.selectbox(
+                "Package state",
+                options=["", "UNOPENED", "OPENED"],
+                format_func=lambda value: {
+                    "": "Not specified / not applicable",
+                    "UNOPENED": "Unopened",
+                    "OPENED": "Opened",
+                }[value],
+                key="confirmed_barcode_package_state",
+            )
+
+            confirmed_opened_date = None
+
+            if confirmed_package_state == "OPENED":
+                confirmed_opened_date = st.date_input(
+                    "Date opened",
+                    value=None,
+                    max_value=date.today(),
+                    key="confirmed_barcode_opened_date",
+                )
+
+            confirmed_thawed_date = st.date_input(
+                "Date thawed (optional)",
+                value=None,
+                max_value=date.today(),
+                help="Leave blank if the product was not previously frozen.",
+                key="confirmed_barcode_thawed_date",
+            )
+
             if st.button(
                 "✅ Confirm and Add to Pantry",
                 type="primary",
@@ -1288,6 +1379,45 @@ if selected_page == "📷 Scan Food":
             ):
                 if not confirmed_name.strip():
                     st.warning("Please enter a product name.")
+
+                elif (
+                    confirmed_food_classification == "COOKED"
+                    and confirmed_preparation_state in ["WHOLE", "CUT", "RAW"]
+                ):
+                    st.warning(
+                        "For cooked food, select Cooked as the preparation "
+                        "state or leave it unspecified."
+                    )
+
+                elif (
+                    confirmed_food_classification == "REGULAR"
+                    and confirmed_preparation_state == "COOKED"
+                ):
+                    st.warning(
+                        "Please select Cooked food / leftovers "
+                        "as the food classification."
+                    )
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_purchase_date > date.today()
+                ):
+                    st.warning("Purchase date cannot be in the future.")
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_opened_date
+                    and confirmed_opened_date < confirmed_purchase_date
+                ):
+                    st.warning("Opening date cannot precede the purchase date.")
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_thawed_date
+                    and confirmed_thawed_date < confirmed_purchase_date
+                ):
+                    st.warning("Thawing date cannot precede the purchase date.")
+
                 else:
                     try:
                         add_pantry_item(
@@ -1307,6 +1437,21 @@ if selected_page == "📷 Scan Food":
                             brand=product_to_confirm.get("brand"),
                             upc=product_to_confirm.get("barcode"),
                             lot_code=confirmed_lot_code.strip() or None,
+                            prepared_date=(
+                                confirmed_prepared_date.isoformat()
+                                if confirmed_prepared_date else None
+                            ),
+                            food_classification=confirmed_food_classification or None,
+                            preparation_state=confirmed_preparation_state or None,
+                            package_state=confirmed_package_state or None,
+                            opened_date=(
+                                confirmed_opened_date.isoformat()
+                                if confirmed_opened_date else None
+                            ),
+                            thawed_date=(
+                                confirmed_thawed_date.isoformat()
+                                if confirmed_thawed_date else None
+                            ),
                         )
 
                         st.session_state.pantry_manager = PantryManager()
