@@ -633,7 +633,11 @@ if selected_page == "🥕 My Pantry":
         st.session_state["manual_purchase_date"] = None
         st.session_state["manual_expiration_date"] = None
         st.session_state["manual_storage_location"] = ""
-        st.session_state["manual_food_classification"] = "Regular ingredient"
+        st.session_state["manual_food_classification"] = ""
+        st.session_state["manual_preparation_state"] = ""
+        st.session_state["manual_package_state"] = ""
+        st.session_state["manual_opened_date"] = None
+        st.session_state["manual_thawed_date"] = None
         st.session_state["manual_prepared_date"] = None
 
     if st.session_state.pop("manual_entry_success", False):
@@ -650,13 +654,31 @@ if selected_page == "🥕 My Pantry":
 
     food_classification = st.selectbox(
         "Food classification",
-        options=["Regular ingredient", "Cooked food / leftovers"],
+        options=["", "REGULAR", "COOKED"],
+        format_func=lambda value: {
+            "": "Select food classification",
+            "REGULAR": "Regular ingredient",
+            "COOKED": "Cooked food / leftovers",
+        }[value],
         key="manual_food_classification",
+    )
+
+    preparation_state = st.selectbox(
+        "Preparation state",
+        options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+        format_func=lambda value: {
+            "": "Select preparation state",
+            "WHOLE": "Whole",
+            "CUT": "Cut / sliced",
+            "RAW": "Raw",
+            "COOKED": "Cooked",
+        }[value],
+        key="manual_preparation_state",
     )
 
     prepared_date = None
 
-    if food_classification == "Cooked food / leftovers":
+    if food_classification == "COOKED":
         prepared_date = st.date_input(
             "Date prepared",
             value=None,
@@ -664,6 +686,37 @@ if selected_page == "🥕 My Pantry":
             format="MM/DD/YYYY",
             key="manual_prepared_date",
         )
+
+    package_state = st.selectbox(
+        "Package state",
+        options=["", "UNOPENED", "OPENED"],
+        format_func=lambda value: {
+            "": "Not specified / not applicable",
+            "UNOPENED": "Unopened",
+            "OPENED": "Opened",
+        }[value],
+        key="manual_package_state",
+    )
+
+    opened_date = None
+
+    if package_state == "OPENED":
+        opened_date = st.date_input(
+            "Date opened",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="manual_opened_date",
+        )
+
+    thawed_date = st.date_input(
+        "Date thawed (if previously frozen)",
+        value=None,
+        max_value=date.today(),
+        format="MM/DD/YYYY",
+        key="manual_thawed_date",
+        help="Leave blank if not applicable or unknown.",
+    )
 
     quantity_column, unit_column = st.columns(2, gap="large")
 
@@ -716,6 +769,45 @@ if selected_page == "🥕 My Pantry":
         type="primary",
         use_container_width=True
     ):
+
+        if (
+            food_classification == "COOKED"
+            and preparation_state in ("WHOLE", "CUT", "RAW")
+        ):
+            st.warning(
+                "For cooked food, select Cooked as the preparation "
+                "state or leave it unspecified."
+            )
+            st.stop()
+
+        if (
+            food_classification == "REGULAR"
+            and preparation_state == "COOKED"
+        ):
+            st.warning(
+                "Please select Cooked food / leftovers "
+                "as the food classification."
+            )
+            st.stop()
+
+        if purchase_date and purchase_date > date.today():
+            st.warning("Purchase date cannot be in the future.")
+            st.stop()
+
+        if purchase_date and opened_date:
+            if opened_date < purchase_date:
+                st.warning(
+                    "Opening date cannot precede the purchase date."
+                )
+                st.stop()
+
+        if purchase_date and thawed_date:
+            if thawed_date < purchase_date:
+                st.warning(
+                    "Thawing date cannot precede the purchase date."
+                )
+                st.stop()
+
         if ingredient_name.strip():
             try:
                 add_pantry_item(
@@ -727,7 +819,12 @@ if selected_page == "🥕 My Pantry":
                     expiration_date=expiration_date.isoformat() if expiration_date else None,
                     storage_location=storage_location or None,
                     prepared_date=prepared_date.isoformat() if prepared_date else None,
-                )
+                    food_classification=food_classification or None,
+                    preparation_state=preparation_state or None,
+                    package_state=package_state or None,
+                    opened_date=opened_date.isoformat() if opened_date else None,
+                    thawed_date=thawed_date.isoformat() if thawed_date else None,
+                )   
 
                 st.session_state.pantry_manager.add_item(
                     ingredient_name.strip(),
