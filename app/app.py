@@ -993,17 +993,23 @@ if selected_page == "📷 Scan Food":
             st.success("Ingredient successfully saved to your pantry!")
 
         def clear_image_recognition():
-           st.session_state.recognized_food = None
+            st.session_state.recognized_food = None
 
-           for key in (
-               "confirmed_image_name",
-               "confirmed_image_quantity",
-               "confirmed_image_unit",
-               "confirmed_image_storage",
-               "confirmed_image_purchase_date",
-               "confirmed_image_expiration_date",
+            for key in (
+                "confirmed_image_name",
+                "confirmed_image_quantity",
+                "confirmed_image_unit",
+                "confirmed_image_storage",
+                "confirmed_image_purchase_date",
+                "confirmed_image_expiration_date",
+                "confirmed_image_food_classification",
+                "confirmed_image_preparation_state",
+                "confirmed_image_package_state",
+                "confirmed_image_prepared_date",
+                "confirmed_image_opened_date",
+                "confirmed_image_thawed_date",
             ):
-               st.session_state.pop(key, None)
+                st.session_state.pop(key, None)
 
 
         if st.session_state.pop("reset_image_entry", False):
@@ -1120,6 +1126,72 @@ if selected_page == "📷 Scan Food":
                     key="confirmed_image_expiration_date",
                 )
 
+                confirmed_image_food_classification = st.selectbox(
+                    "Food classification",
+                    options=["", "REGULAR", "COOKED"],
+                    format_func=lambda value: {
+                        "": "Not specified",
+                        "REGULAR": "Regular ingredient",
+                        "COOKED": "Cooked food / leftovers",
+                    }[value],
+                    key="confirmed_image_food_classification",
+                )
+
+                confirmed_image_prepared_date = None
+
+                if confirmed_image_food_classification == "COOKED":
+                    confirmed_image_prepared_date = st.date_input(
+                        "Date prepared",
+                        value=None,
+                        max_value=date.today(),
+                        format="MM/DD/YYYY",
+                        key="confirmed_image_prepared_date",
+                    )
+
+                confirmed_image_preparation_state = st.selectbox(
+                    "Preparation state",
+                    options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                    format_func=lambda value: {
+                        "": "Not specified",
+                        "WHOLE": "Whole",
+                        "CUT": "Cut / sliced",
+                        "RAW": "Raw",
+                        "COOKED": "Cooked",
+                    }[value],
+                    key="confirmed_image_preparation_state",
+                )
+
+                confirmed_image_package_state = st.selectbox(
+                    "Package state",
+                    options=["", "UNOPENED", "OPENED"],
+                    format_func=lambda value: {
+                        "": "Not specified / not applicable",
+                        "UNOPENED": "Unopened",
+                        "OPENED": "Opened",
+                    }[value],
+                    key="confirmed_image_package_state",
+                )
+
+                confirmed_image_opened_date = None
+
+                if confirmed_image_package_state == "OPENED":
+                    confirmed_image_opened_date = st.date_input(
+                        "Date opened",
+                        value=None,
+                        max_value=date.today(),
+                        format="MM/DD/YYYY",
+                        key="confirmed_image_opened_date",
+                    )
+
+                confirmed_image_thawed_date = st.date_input(
+                    "Date thawed (optional)",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    help="Leave blank if not applicable or unknown.",
+                    key="confirmed_image_thawed_date",
+                )
+
                 if st.button(
                     "➕ Save Recognized Ingredient to Pantry",
                     use_container_width=True,
@@ -1127,6 +1199,45 @@ if selected_page == "📷 Scan Food":
                 ):
                     if not confirmed_image_name.strip():
                         st.warning("Please enter an ingredient name.")
+
+                    elif (
+                        confirmed_image_food_classification == "COOKED"
+                        and confirmed_image_preparation_state in ["WHOLE", "CUT", "RAW"]
+                    ):
+                        st.warning(
+                            "For cooked food, select Cooked as the preparation "
+                            "state or leave it unspecified."
+                        )
+
+                    elif (
+                        confirmed_image_food_classification == "REGULAR"
+                        and confirmed_image_preparation_state == "COOKED"
+                    ):
+                        st.warning(
+                            "Please select Cooked food / leftovers "
+                            "as the food classification."
+                        )
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_purchase_date > date.today()
+                    ):
+                        st.warning("Purchase date cannot be in the future.")
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_opened_date
+                        and confirmed_image_opened_date < confirmed_image_purchase_date
+                    ):
+                        st.warning("Opening date cannot precede the purchase date.")
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_thawed_date
+                        and confirmed_image_thawed_date < confirmed_image_purchase_date
+                    ):
+                        st.warning("Thawing date cannot precede the purchase date.")
+
                     else:
                         try:
                             add_pantry_item(
@@ -1143,6 +1254,21 @@ if selected_page == "📷 Scan Food":
                                     if confirmed_image_expiration_date else None
                                 ),
                                 storage_location=confirmed_image_storage or None,
+                                prepared_date=(
+                                    confirmed_image_prepared_date.isoformat()
+                                    if confirmed_image_prepared_date else None
+                                ),
+                                food_classification=confirmed_image_food_classification or None,
+                                preparation_state=confirmed_image_preparation_state or None,
+                                package_state=confirmed_image_package_state or None,
+                                opened_date=(
+                                    confirmed_image_opened_date.isoformat()
+                                    if confirmed_image_opened_date else None
+                                ),
+                                thawed_date=(
+                                    confirmed_image_thawed_date.isoformat()
+                                    if confirmed_image_thawed_date else None
+                                ),
                             )
 
                             st.session_state.pantry_manager.add_item(
