@@ -129,6 +129,27 @@ def find_foodkeeper_rule(food_name, foodkeeper_rules=None):
         "carrot": "carrots",
         "carrots": "carrots",
         "apple": "apples",
+        "hard cheese": "cheese, hard (cheddar, swiss)",
+        "cheddar": "cheese, hard (cheddar, swiss)",
+        "cheddar cheese": "cheese, hard (cheddar, swiss)",
+        "swiss cheese": "cheese, hard (cheddar, swiss)",
+        "jarred tomato sauce": "tomato sauce (jar), opened",
+        "opened jarred tomato sauce": "tomato sauce (jar), opened",
+        "yogurt": "yogurt",
+        "eggs in shell": "eggs, in shell",
+        "leaf lettuce": "lettuce, leaf / spinach",
+        "iceberg lettuce": "lettuce, iceberg / romaine",
+        "romaine lettuce": "lettuce, iceberg / romaine",
+        "broccoli": "broccoli",
+        "potato": "potatoes",
+        "potatoes": "potatoes",
+        "apples": "apples",
+        "banana": "bananas",
+        "bananas": "bananas",
+        "boneless chicken breast": "chicken parts, boneless breast",
+        "tofu": "tofu",
+        "cooked pasta": "cooked pasta",
+        "cooked rice": "cooked rice",
     }
 
     normalized_name = food_name.strip().lower()
@@ -181,6 +202,31 @@ def adapt_pantry_item(pantry_item):
         "thawed_date": thawed_date,
     }
 
+def validate_foodkeeper_conditions(item, rule, *, rule_source="FoodKeeper"):
+    """Check whether pantry metadata satisfies a FoodKeeper rule."""
+    condition_fields = {
+        "required_food_classification": "food_classification",
+        "required_preparation_state": "preparation_state",
+        "required_package_state": "package_state",
+    }
+
+    for rule_field, item_field in condition_fields.items():
+        required = rule.get(rule_field)
+
+        if not required:
+            continue
+
+        actual = item.get(item_field)
+        label = item_field.replace("_", " ").capitalize()
+
+        if not actual:
+            return f"{label} is required for this {rule_source} rule."
+
+        if actual != required:
+            return f"{label} must be {required} for this {rule_source} rule."
+
+    return None
+
 
 def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
     """Evaluate FoodKeeper guidance without guessing missing dates."""
@@ -211,26 +257,66 @@ def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
     if item.get("storage_location") != "REFRIGERATOR":
         result["reason"] = "FoodKeeper rule requires refrigerated storage."
         return result
+
+    condition_error = validate_foodkeeper_conditions(item, rule)
+
+    if condition_error is not None:
+        result["reason"] = condition_error
+        return result
     
-    if rule["basis"].strip().lower() != "from date of purchase":
+    basis = rule["basis"].strip().lower()
+
+    if item.get("thawed_date"):
         result["reason"] = (
-            "FoodKeeper rule does not support purchase-date calculations."
+            "Previously frozen food requires a supported thawing rule."
         )
         return result
 
-    if not item.get("purchase_date"):
-        result["reason"] = "Purchase date is required."
+    supported_bases = {
+        "from date of purchase": ("purchase_date", "Purchase date"),
+        "after opening": ("opened_date", "Opening date"),
+    }
+
+    if basis not in supported_bases:
+        result["reason"] = (
+            "FoodKeeper rule does not support date calculations."
+        )
+        return result
+
+    date_field, date_label = supported_bases[basis]
+
+    if not item.get(date_field):
+        result["reason"] = f"{date_label} is required."
         return result
 
     try:
-        purchased = date.fromisoformat(item["purchase_date"])
+        reference_date = date.fromisoformat(item[date_field])
     except (TypeError, ValueError):
-        result["reason"] = "Purchase date must be a valid YYYY-MM-DD date."
+        result["reason"] = (
+            f"{date_label} must be a valid YYYY-MM-DD date."
+        )
         return result
 
-    if purchased > as_of:
-        result["reason"] = "Purchase date is in the future; confirm it."
+    if reference_date > as_of:
+        result["reason"] = (
+            f"{date_label} is in the future; confirm it."
+        )
         return result
+    
+    if basis == "after opening" and item.get("purchase_date"):
+        try:
+            purchase_date = date.fromisoformat(item["purchase_date"])
+        except (TypeError, ValueError):
+            result["reason"] = (
+                "Purchase date must be a valid YYYY-MM-DD date."
+            )
+            return result
+
+        if reference_date < purchase_date:
+            result["reason"] = (
+                "Opening date cannot precede purchase date."
+            )
+            return result
 
     try:
         min_days = int(rule["fridge_days_min"])
@@ -243,8 +329,8 @@ def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
         result["reason"] = "FoodKeeper storage day range is invalid."
         return result
     
-    reminder_date = purchased + timedelta(days=min_days)
-    range_end_date = purchased + timedelta(days=max_days)
+    reminder_date = reference_date + timedelta(days=min_days)
+    range_end_date = reference_date + timedelta(days=max_days)
 
     countdown = evaluate_reminder(
         item["item_id"],
@@ -320,6 +406,8 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         "reminder_status": "UNKNOWN",
         "source": None,
         "reason": "",
+        "storage_range_days": None,
+        "storage_range_end_date": None,
     }
 
     if (
@@ -327,6 +415,27 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         or item.get("storage_location") != "REFRIGERATOR"
     ):
         result["reason"] = "Food or storage is unsupported by this rule."
+        return result
+
+    required_conditions = {
+        "required_food_classification": "COOKED",
+        "required_preparation_state": "COOKED",
+    }
+
+    condition_error = validate_foodkeeper_conditions(
+        item,
+        required_conditions,
+        rule_source="FoodSafety.gov",
+    )
+
+    if condition_error is not None:
+        result["reason"] = condition_error
+        return result
+
+    if item.get("thawed_date"):
+        result["reason"] = (
+            "Previously frozen food requires a supported thawing rule."
+        )
         return result
 
     if not item.get("prepared_date"):
@@ -349,10 +458,27 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
     )
     
     if supported_rule is None:
-        raise ValueError("Missing FS-COLD-020")
-    reminder = prepared + timedelta(
-        days=int(supported_rule["refrigerator_min_days"])
-    )
+        result["reason"] = "Missing FS-COLD-020 storage rule."
+        return result
+
+    try:
+        min_days = int(supported_rule["refrigerator_min_days"])
+        max_days = int(supported_rule["refrigerator_max_days"])
+    except (KeyError, TypeError, ValueError):
+        result["reason"] = (
+            "FoodSafety.gov storage duration is missing or invalid."
+        )
+        return result
+
+    if min_days < 0 or max_days < min_days:
+        result["reason"] = (
+            "FoodSafety.gov storage day range is invalid."
+        )
+        return result
+
+    reminder = prepared + timedelta(days=min_days)
+    range_end_date = prepared + timedelta(days=max_days)
+
     countdown = evaluate_reminder(
         item["item_id"], reminder.isoformat(), as_of=as_of
     )
@@ -363,8 +489,11 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         "recommended_use_date": reminder.isoformat(),
         "reminder_status": countdown["reminder_status"],
         "source": normalize_source_url(supported_rule["source_url"]),
-        "reason": "Estimated day-3 reminder using FS-COLD-020.",
+        "storage_range_days": (min_days, max_days),
+        "storage_range_end_date": range_end_date.isoformat(),
+        "reason": f"Estimated day-{min_days} reminder using FS-COLD-020.",
     })
+
     return result
 
 
