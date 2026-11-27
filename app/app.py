@@ -245,6 +245,7 @@ def render_pantry_batch(item):
         "Follow applicable package instructions and food safety guidance."
     )
 
+
     osu_rule = find_osu_rule(item["name"])
 
     if (
@@ -2078,17 +2079,105 @@ if selected_page == "🧊 Food Safety":
 
     with storage_column:
         st.subheader("🧊 Food Storage Recommendations")
-        st.caption("Check available FoodKeeper guidance for refrigerated ingredients.")
-        st.caption("Storage location: Refrigerator")
+        st.caption(
+            "Explore available storage guidance without "
+            "adding an item to your pantry."
+        )
+        st.caption(
+            "Provide known storage details. "
+            "Leave unknown information unspecified."
+        )
 
         storage_food = st.text_input(
             "Ingredient for storage guidance",
-            value="carrots"
+            placeholder="e.g., apple, carrots, cheddar cheese",
+            key="storage_checker_food",
+        )
+
+        storage_location = st.selectbox(
+            "Storage location",
+            options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "REFRIGERATOR": "Refrigerator",
+                "FREEZER": "Freezer",
+                "PANTRY": "Pantry / room temperature",
+            }[value],
+            key="storage_checker_location",
         )
 
         purchase_date = st.date_input(
-            "Purchase date",
-            value=date.today()
+            "Purchase date (optional)",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="storage_checker_purchase_date",
+        )
+
+        food_classification = st.selectbox(
+            "Food classification",
+            options=["", "REGULAR", "COOKED"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "REGULAR": "Regular ingredient",
+                "COOKED": "Cooked food / leftovers",
+            }[value],
+            key="storage_checker_food_classification",
+        )
+
+        prepared_date = None
+
+        if food_classification == "COOKED":
+            prepared_date = st.date_input(
+                "Date prepared",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="storage_checker_prepared_date",
+            )
+
+        preparation_state = st.selectbox(
+            "Preparation state",
+            options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "WHOLE": "Whole",
+                "CUT": "Cut",
+                "RAW": "Raw",
+                "COOKED": "Cooked",
+            }[value],
+            key="storage_checker_preparation_state",
+        )
+
+        package_state = st.selectbox(
+            "Package state",
+            options=["", "UNOPENED", "OPENED"],
+            format_func=lambda value: {
+                "": "Not specified / not applicable",
+                "UNOPENED": "Unopened",
+                "OPENED": "Opened",
+            }[value],
+            key="storage_checker_package_state",
+        )
+
+        opened_date = None
+
+        if package_state == "OPENED":
+            opened_date = st.date_input(
+                "Date opened",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="storage_checker_opened_date",
+            )
+
+        thawed_date = st.date_input(
+            "Date thawed (optional)",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            help="Leave blank if not applicable or unknown.",
+            key="storage_checker_thawed_date",
         )
 
         if st.button(
@@ -2096,40 +2185,144 @@ if selected_page == "🧊 Food Safety":
             type="primary",
             use_container_width=True
         ):
-            item = {
-                "item_id": "storage-demo-001",
-                "food_type": storage_food,
-                "storage_location": "REFRIGERATOR",
-                "purchase_date": purchase_date.isoformat()
-            }
 
-            result = evaluate_foodkeeper(
-                item,
-                as_of=date.today()
-            )
-            st.markdown("#### 📋 Storage Guidance Results")
+            if not storage_food.strip():
+                st.warning("Please enter an ingredient name.")
 
-            if result["use_priority"] == "UNKNOWN":
-                st.warning(result["reason"])
-            else:
-                st.success(
-                    f"Recommended use reminder: "
-                    f"{result['recommended_use_date']}"
+            elif (
+                food_classification == "COOKED"
+                and preparation_state in ("WHOLE", "CUT", "RAW")
+            ):
+                st.warning(
+                    "For cooked food, select Cooked as the "
+                    "preparation state or leave it unspecified."
                 )
 
-            if result["use_priority"] != "UNKNOWN":
-                priority_column, days_column = st.columns(2, gap="large")
+            elif (
+                food_classification == "REGULAR"
+                and preparation_state == "COOKED"
+            ):
+                st.warning(
+                    "Please select Cooked food / leftovers "
+                    "as the food classification."
+                )
 
-                with priority_column:
-                    st.metric("Use Priority", result["use_priority"])
+            elif purchase_date and purchase_date > date.today():
+                st.warning("Purchase date cannot be in the future.")
 
-                with days_column:
-                    st.metric("Days Remaining", result["days_remaining"])
+            elif purchase_date and opened_date and opened_date < purchase_date:
+                st.warning("Opening date cannot precede the purchase date.")
+
+            elif purchase_date and thawed_date and thawed_date < purchase_date:
+                st.warning("Thawing date cannot precede the purchase date.")
+
+            else:
+
+                item = {
+                    "item_id": "storage-demo-001",
+                    "food_type": storage_food.strip(),
+                    "storage_location": storage_location or None,
+                    "purchase_date": purchase_date.isoformat() if purchase_date else None,
+                    "food_classification": food_classification or None,
+                    "preparation_state": preparation_state or None,
+                    "package_state": package_state or None,
+                    "prepared_date": prepared_date.isoformat() if prepared_date else None,
+                    "opened_date": opened_date.isoformat() if opened_date else None,
+                    "thawed_date": thawed_date.isoformat() if thawed_date else None,
+                }
+
+                foodkeeper_result = evaluate_foodkeeper(
+                    item,
+                    as_of=date.today()
+                )
+
+                leftovers_result = evaluate_leftovers(
+                    item,
+                    as_of=date.today()
+                )
+
+                if storage_food.strip().casefold() == "cooked meat or poultry":
+                    result = leftovers_result
+                else:
+                    result = foodkeeper_result
+
+                st.markdown("#### 📋 Storage Guidance Results")
+
+                if result["use_priority"] == "UNKNOWN":
+                    st.warning("Use-soon reminder: Not calculated")
+                    st.caption("Priority: UNKNOWN")
+                    st.caption(f"Reason: {result['reason']}")
+
+                else:
+                    st.success(
+                        f"Recommended use reminder: "
+                        f"{result['recommended_use_date']}"
+                    )
+
+                    priority_column, days_column = st.columns(2, gap="large")
+
+                    with priority_column:
+                        st.metric("Use Priority", result["use_priority"])
+
+                    with days_column:
+                        st.metric("Days Remaining", result["days_remaining"])
+
+                    storage_range = result.get("storage_range_days")
+
+                    if storage_range:
+                        min_days, max_days = storage_range
+
+                        if min_days == max_days:
+                            st.caption(f"Storage guidance: {min_days} days")
+                        else:
+                            st.caption(
+                                f"Storage guidance: {min_days}–{max_days} days"
+                            )
+
+                    if result.get("calculation_basis"):
+                        st.caption(
+                            f"Calculation basis: "
+                            f"{result['calculation_basis']}"
+                        )
+
+                    if result["reminder_status"] == "PAST_REMINDER":
+                        st.warning(
+                            "The recommended use reminder has passed."
+                        )
+
+                    elif result["days_remaining"] == 0:
+                        st.info(
+                            "The recommended use reminder is due today."
+                        )
+
+                    if result.get("source"):
+                        st.caption(f"Source: {result['source']}")
 
                 st.caption(
-                    "This is a use-soon reminder, not a food safety determination."
+                    "Use-soon reminders are not food safety determinations. "
+                    "Follow applicable package instructions and food safety guidance."
                 )
+                osu_rule = find_osu_rule(storage_food.strip())
 
+                if (
+                    osu_rule is not None
+                    and storage_location == osu_rule["storage_location"]
+                ):
+                    st.caption(
+                        f"🌿 OSU Extension storage guidance: "
+                        f"{osu_rule['duration_raw']}"
+                    )
+                    st.caption(
+                        f"Recommended temperature: "
+                        f"{osu_rule['storage_temperature_raw']}"
+                    )
+                    st.caption(
+                        "Approximate storage time for best quality; "
+                        "not a calculated expiration date."
+                    )
+                    st.caption(
+                        f"Source: {osu_rule['source_url']}"
+                    )
 
     with recall_column:
         st.subheader("🚨 Food Recall Checker")
