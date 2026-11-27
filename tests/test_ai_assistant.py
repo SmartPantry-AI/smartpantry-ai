@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-
+from datetime import date, timedelta
 from modules.ai_assistant import ask_ai, MOCHI_INSTRUCTIONS, handle_pantry_command, interpret_pantry_request, confirm_pantry_command, format_pantry_inventory
 
 def test_ask_ai_returns_response():
@@ -348,4 +348,240 @@ def test_mochi_preserves_separate_pantry_batches():
     assert "Rice: 10 lb" in result
     assert "Rice: 2 cups" in result
 
-        
+def test_mochi_adds_item_with_storage_metadata():
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    fake_client = object()
+
+    command = {
+        "action": "add",
+        "ingredient": "cheddar cheese",
+        "quantity": 1,
+        "unit": "item",
+    }
+
+    metadata = {
+        "purchase_date": "2026-11-20",
+        "expiration_date": "2026-12-20",
+        "storage_location": "REFRIGERATOR",
+        "prepared_date": None,
+        "food_classification": "REGULAR",
+        "preparation_state": None,
+        "package_state": "OPENED",
+        "opened_date": "2026-11-24",
+        "thawed_date": None,
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        mock_add.return_value = [
+            {"id": 102, "name": "cheddar cheese"}
+        ]
+
+        result = handle_supabase_pantry_command(
+            command,
+            fake_client,
+            storage_metadata=metadata,
+        )
+
+        mock_add.assert_called_once_with(
+            client=fake_client,
+            name="cheddar cheese",
+            quantity=1,
+            unit="item",
+            **metadata,
+        )
+
+    assert result == [
+        {"id": 102, "name": "cheddar cheese"}
+    ]
+
+
+@pytest.mark.parametrize("metadata", [
+    "invalid metadata",
+    [],
+    {"storage_location": "GARAGE"},
+    {"food_classification": "FRESH"},
+    {"preparation_state": "FROZEN"},
+    {"package_state": "SEALED"},
+    {"storage_location": 123},
+    {"food_classification": ""},
+    {"preparation_state": ["RAW"]},
+])
+def test_mochi_rejects_invalid_storage_metadata(metadata):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    command = {
+        "action": "add",
+        "ingredient": "apple",
+        "quantity": 2,
+        "unit": "item",
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        with pytest.raises(ValueError):
+            handle_supabase_pantry_command(
+                command,
+                object(),
+                storage_metadata=metadata,
+            )
+
+        mock_add.assert_not_called()
+
+
+@pytest.mark.parametrize("classification, preparation", [
+    ("COOKED", "RAW"),
+    ("COOKED", "WHOLE"),
+    ("COOKED", "CUT"),
+    ("REGULAR", "COOKED"),
+])
+def test_mochi_rejects_contradictory_food_classification(
+    classification, preparation
+):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    command = {
+        "action": "add",
+        "ingredient": "chicken",
+        "quantity": 1,
+        "unit": "item",
+    }
+
+    metadata = {
+        "food_classification": classification,
+        "preparation_state": preparation,
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        with pytest.raises(ValueError):
+            handle_supabase_pantry_command(
+                command,
+                object(),
+                storage_metadata=metadata,
+            )
+
+        mock_add.assert_not_called()
+
+
+@pytest.mark.parametrize("metadata", [
+    {"purchase_date": "11/25/2026"},
+    {"expiration_date": "2026-02-30"},
+    {"prepared_date": "2026-13-01"},
+    {"opened_date": "20261125"},
+    {"thawed_date": ""},
+    {"purchase_date": 20261125},
+    {"prepared_date": "yesterday"},
+    {"opened_date": "2026-11-25T12:00:00"},
+    {"thawed_date": "2026-02-29"},
+])
+def test_mochi_rejects_invalid_storage_dates(metadata):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    command = {
+        "action": "add",
+        "ingredient": "chicken",
+        "quantity": 1,
+        "unit": "item",
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        with pytest.raises(ValueError):
+            handle_supabase_pantry_command(
+                command,
+                object(),
+                storage_metadata=metadata,
+            )
+
+        mock_add.assert_not_called()
+
+
+@pytest.mark.parametrize("metadata", [
+    {"purchase_date": (date.today() + timedelta(days=1)).isoformat()},
+    {"prepared_date": (date.today() + timedelta(days=1)).isoformat()},
+    {"opened_date": (date.today() + timedelta(days=1)).isoformat()},
+    {"thawed_date": (date.today() + timedelta(days=1)).isoformat()},
+    {
+        "purchase_date": "2026-11-24",
+        "opened_date": "2026-11-20",
+    },
+    {
+        "purchase_date": "2026-11-24",
+        "thawed_date": "2026-11-20",
+    },
+])
+def test_mochi_rejects_invalid_date_chronology(metadata):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    command = {
+        "action": "add",
+        "ingredient": "chicken",
+        "quantity": 1,
+        "unit": "item",
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        with pytest.raises(ValueError):
+            handle_supabase_pantry_command(
+                command,
+                object(),
+                storage_metadata=metadata,
+            )
+
+        mock_add.assert_not_called()
+
+@pytest.mark.parametrize("metadata", [
+    {},
+    {"food_classification": "COOKED"},
+    {"food_classification": "COOKED", "preparation_state": "COOKED"},
+    {"food_classification": "REGULAR", "preparation_state": "WHOLE"},
+    {"expiration_date": (date.today() + timedelta(days=30)).isoformat()},
+    {"expiration_date": (date.today() - timedelta(days=5)).isoformat()},
+    {
+        "purchase_date": "2026-11-24",
+        "opened_date": "2026-11-24",
+        "package_state": "OPENED",
+    },
+    {
+        "purchase_date": None,
+        "storage_location": None,
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "expiration_date": None,
+        "prepared_date": None,
+        "opened_date": None,
+        "thawed_date": None,
+    },
+])
+def test_mochi_accepts_valid_storage_metadata(metadata):
+    from modules.ai_assistant import handle_supabase_pantry_command
+
+    fake_client = object()
+
+    command = {
+        "action": "add",
+        "ingredient": "chicken",
+        "quantity": 1,
+        "unit": "item",
+    }
+
+    with patch("modules.supabase_pantry.add_pantry_item") as mock_add:
+        mock_add.return_value = [{"id": 103, "name": "chicken"}]
+
+        result = handle_supabase_pantry_command(
+            command,
+            fake_client,
+            storage_metadata=metadata,
+        )
+
+        mock_add.assert_called_once_with(
+            client=fake_client,
+            name="chicken",
+            quantity=1,
+            unit="item",
+            **metadata,
+        )
+
+    assert result == [{"id": 103, "name": "chicken"}]
+
+
+    

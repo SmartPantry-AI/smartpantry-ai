@@ -169,6 +169,20 @@ st.set_page_config(
 def render_mochi_chat():
     """Display Mochi's chat interface."""
 
+    if st.session_state.pop("mochi_storage_reset", False):
+        for key in (
+            "mochi_storage_location",
+            "mochi_purchase_date",
+            "mochi_expiration_date",
+            "mochi_food_classification",
+            "mochi_preparation_state",
+            "mochi_package_state",
+            "mochi_prepared_date",
+            "mochi_opened_date",
+            "mochi_thawed_date",
+        ):
+            st.session_state.pop(key, None)
+
     if "mochi_messages" not in st.session_state:
         st.session_state.mochi_messages = []
 
@@ -205,6 +219,105 @@ def render_mochi_chat():
             f"{pending_command['ingredient']}"
         )
 
+        with st.expander("Optional storage details", expanded=False):
+            st.caption(
+                "Add storage information for more accurate "
+                "use-soon reminders. Leave unknown details blank."
+            )
+
+            mochi_storage_location = st.selectbox(
+                "Storage location",
+                options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REFRIGERATOR": "Refrigerator",
+                    "FREEZER": "Freezer",
+                    "PANTRY": "Pantry",
+                }[value],
+                key="mochi_storage_location",
+            )
+
+            mochi_purchase_date = st.date_input(
+                "Purchase date (optional)",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="mochi_purchase_date",
+            )
+
+            mochi_expiration_date = st.date_input(
+                "Package expiration date (optional)",
+                value=None,
+                format="MM/DD/YYYY",
+                key="mochi_expiration_date",
+            )
+
+            mochi_food_classification = st.selectbox(
+                "Food classification",
+                options=["", "REGULAR", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REGULAR": "Regular ingredient",
+                    "COOKED": "Cooked food / leftovers",
+                }[value],
+                key="mochi_food_classification",
+            )
+
+            mochi_preparation_state = st.selectbox(
+                "Preparation state",
+                options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "WHOLE": "Whole",
+                    "CUT": "Cut",
+                    "RAW": "Raw",
+                    "COOKED": "Cooked",
+                }[value],
+                key="mochi_preparation_state",
+            )
+
+            mochi_prepared_date = None
+
+            if mochi_food_classification == "COOKED":
+                mochi_prepared_date = st.date_input(
+                    "Date prepared",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    key="mochi_prepared_date",
+                )
+
+            mochi_package_state = st.selectbox(
+                "Package state",
+                options=["", "UNOPENED", "OPENED"],
+                format_func=lambda value: {
+                    "": "Not specified / not applicable",
+                    "UNOPENED": "Unopened",
+                    "OPENED": "Opened",
+                }[value],
+                key="mochi_package_state",
+            )
+
+            mochi_opened_date = None
+
+            if mochi_package_state == "OPENED":
+                mochi_opened_date = st.date_input(
+                    "Date opened",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    key="mochi_opened_date",
+                )
+
+            mochi_thawed_date = st.date_input(
+                "Date thawed (optional)",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                help="Leave blank if not applicable or unknown.",
+                key="mochi_thawed_date",
+            )
+
         confirm_col, cancel_col = st.columns(2)
 
         with confirm_col:
@@ -213,6 +326,17 @@ def render_mochi_chat():
                     result = handle_supabase_pantry_command(
                         pending_command,
                         st.session_state.supabase_client,
+                        storage_metadata={
+                            "storage_location": mochi_storage_location or None,
+                            "purchase_date": mochi_purchase_date.isoformat() if mochi_purchase_date else None,
+                            "expiration_date": mochi_expiration_date.isoformat() if mochi_expiration_date else None,
+                            "food_classification": mochi_food_classification or None,
+                            "preparation_state": mochi_preparation_state or None,
+                            "package_state": mochi_package_state or None,
+                            "prepared_date": mochi_prepared_date.isoformat() if mochi_prepared_date else None,
+                            "opened_date": mochi_opened_date.isoformat() if mochi_opened_date else None,
+                            "thawed_date": mochi_thawed_date.isoformat() if mochi_thawed_date else None,
+                        },
                     )
 
                     if not result:
@@ -228,7 +352,12 @@ def render_mochi_chat():
                     })
 
                     del st.session_state["mochi_pending_pantry_command"]
+                    st.session_state["mochi_storage_reset"] = True
+                    st.session_state.pop("pantry_manager", None)
                     st.rerun()
+
+                except ValueError as error:
+                    st.warning(str(error))
 
                 except Exception:
                     st.error(
@@ -239,6 +368,7 @@ def render_mochi_chat():
         with cancel_col:
             if st.button("Cancel", key="mochi_cancel_add"):
                 del st.session_state["mochi_pending_pantry_command"]
+                st.session_state["mochi_storage_reset"] = True
 
                 st.session_state.mochi_messages.append({
                     "role": "assistant",
@@ -279,6 +409,7 @@ def render_mochi_chat():
             try:
                 command = interpret_pantry_request(message_text)
                 st.session_state["mochi_pending_pantry_command"] = command
+                st.session_state["mochi_storage_reset"] = True
 
                 mochi_response = (
                     f"Would you like me to add "
