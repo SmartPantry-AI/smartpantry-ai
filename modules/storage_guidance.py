@@ -240,6 +240,7 @@ def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
         "reason": "",
         "storage_range_days": None,
         "storage_range_end_date": None,
+        "calculation_basis": None,
     }
 
     food_name = item.get("food_type")
@@ -345,6 +346,7 @@ def evaluate_foodkeeper(item, *, as_of, foodkeeper_rules=None):
         "reminder_status": countdown["reminder_status"],
         "storage_range_days": (min_days, max_days),
         "storage_range_end_date": range_end_date.isoformat(),
+        "calculation_basis": date_label,
         "source": rule["source"],
         "reason": "Use-soon reminder based on FoodKeeper's earliest supported day.",
     })
@@ -408,6 +410,7 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         "reason": "",
         "storage_range_days": None,
         "storage_range_end_date": None,
+        "calculation_basis": None,
     }
 
     if (
@@ -491,6 +494,7 @@ def evaluate_leftovers(item, *, as_of, storage_rules=None):
         "source": normalize_source_url(supported_rule["source_url"]),
         "storage_range_days": (min_days, max_days),
         "storage_range_end_date": range_end_date.isoformat(),
+        "calculation_basis": "Preparation date",
         "reason": f"Estimated day-{min_days} reminder using FS-COLD-020.",
     })
 

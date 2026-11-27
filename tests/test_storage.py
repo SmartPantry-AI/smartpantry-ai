@@ -1021,3 +1021,99 @@ def test_leftovers_previously_frozen():
     assert result["reason"] == (
         "Previously frozen food requires a supported thawing rule."
     )
+
+def test_foodkeeper_purchase_calculation_basis():
+    item = {
+        "item_id": "test-apple-basis",
+        "food_type": "apple",
+        "storage_location": "REFRIGERATOR",
+        "food_classification": "REGULAR",
+        "preparation_state": "WHOLE",
+        "purchase_date": "2026-11-24",
+    }
+
+    result = evaluate_foodkeeper(
+        item,
+        as_of=date(2026, 11, 26),
+    )
+
+    assert result["calculation_basis"] == "Purchase date"
+    assert result["recommended_use_date"] == "2026-12-22"
+
+
+def test_foodkeeper_opening_calculation_basis():
+    item = {
+        "item_id": "test-cheese-basis",
+        "food_type": "cheddar cheese",
+        "storage_location": "REFRIGERATOR",
+        "food_classification": "REGULAR",
+        "package_state": "OPENED",
+        "purchase_date": "2026-11-15",
+        "opened_date": "2026-11-24",
+    }
+
+    result = evaluate_foodkeeper(
+        item,
+        as_of=date(2026, 11, 26),
+    )
+
+    assert result["calculation_basis"] == "Opening date"
+    assert result["recommended_use_date"] == "2026-12-15"
+
+
+def test_foodkeeper_unknown_calculation_basis():
+    item = {
+        "item_id": "test-unknown-basis",
+        "food_type": "apple",
+        "storage_location": "REFRIGERATOR",
+        "food_classification": "REGULAR",
+        "preparation_state": "WHOLE",
+    }
+
+    result = evaluate_foodkeeper(
+        item,
+        as_of=date(2026, 11, 26),
+    )
+
+    assert result["calculation_basis"] is None
+    assert result["recommended_use_date"] is None
+    assert result["use_priority"] == "UNKNOWN"
+
+
+def test_leftovers_preparation_calculation_basis():
+    item = {
+        "item_id": "test-leftovers-basis",
+        "food_type": "cooked meat or poultry",
+        "storage_location": "REFRIGERATOR",
+        "food_classification": "COOKED",
+        "preparation_state": "COOKED",
+        "prepared_date": "2026-11-24",
+    }
+
+    result = evaluate_leftovers(
+        item,
+        as_of=date(2026, 11, 26),
+    )
+
+    assert result["calculation_basis"] == "Preparation date"
+    assert result["recommended_use_date"] == "2026-11-27"
+
+
+def test_leftovers_unknown_calculation_basis():
+    item = {
+        "item_id": "test-leftovers-unknown-basis",
+        "food_type": "cooked meat or poultry",
+        "storage_location": "REFRIGERATOR",
+        "food_classification": "COOKED",
+        "preparation_state": "COOKED",
+    }
+
+    result = evaluate_leftovers(
+        item,
+        as_of=date(2026, 11, 26),
+    )
+
+    assert result["calculation_basis"] is None
+    assert result["recommended_use_date"] is None
+    assert result["use_priority"] == "UNKNOWN"
+

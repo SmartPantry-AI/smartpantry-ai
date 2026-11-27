@@ -79,12 +79,63 @@ def render_pantry_batch(item):
         st.caption(
             f"📦 Stored in: {storage_labels.get(storage_location, storage_location)}"
         )
+    else:
+        st.caption("📦 Stored in: Not specified")
+
 
     if item.get("purchase_date"):
         st.caption(f"📅 Purchased: {item['purchase_date']}")
 
     if item.get("expiration_date"):
         st.caption(f"🏷️ Package expiration / use-by: {item['expiration_date']}")
+
+    classification_labels = {
+        "REGULAR": "Regular ingredient",
+        "COOKED": "Cooked food / leftovers",
+    }
+
+    preparation_labels = {
+        "WHOLE": "Whole",
+        "CUT": "Cut",
+        "RAW": "Raw",
+        "COOKED": "Cooked",
+    }
+
+    package_labels = {
+        "OPENED": "Opened",
+        "UNOPENED": "Unopened",
+    }
+
+    food_classification = item.get("food_classification")
+    preparation_state = item.get("preparation_state")
+    package_state = item.get("package_state")
+
+    if food_classification:
+        st.caption(
+            f"Food classification: "
+            f"{classification_labels.get(food_classification, food_classification)}"
+        )
+
+    if preparation_state:
+        st.caption(
+            f"Preparation state: "
+            f"{preparation_labels.get(preparation_state, preparation_state)}"
+        )
+
+    if package_state:
+        st.caption(
+            f"Package state: "
+            f"{package_labels.get(package_state, package_state)}"
+        )
+
+    if item.get("prepared_date"):
+        st.caption(f"📅 Prepared: {item['prepared_date']}")
+
+    if item.get("opened_date"):
+        st.caption(f"📅 Opened: {item['opened_date']}")
+
+    if item.get("thawed_date"):
+        st.caption(f"📅 Thawed: {item['thawed_date']}")
 
     adapted_item = adapt_pantry_item(item)
 
@@ -101,6 +152,24 @@ def render_pantry_batch(item):
         st.caption(
             f"Priority: {foodkeeper_result['use_priority']}"
         )
+
+        storage_range = foodkeeper_result.get("storage_range_days")
+
+        if storage_range:
+            min_days, max_days = storage_range
+
+            if min_days == max_days:
+                st.caption(f"Storage guidance: {min_days} days")
+            else:
+                st.caption(
+                    f"Storage guidance: {min_days}–{max_days} days"
+                )
+
+        if foodkeeper_result.get("calculation_basis"):
+            st.caption(
+                f"Calculation basis: "
+                f"{foodkeeper_result['calculation_basis']}"
+            )
         
         if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
             st.warning("⚠️ FoodKeeper reminder is overdue.")
@@ -125,6 +194,23 @@ def render_pantry_batch(item):
         st.caption(
             f"Priority: {leftovers_result['use_priority']}"
         )
+        storage_range = leftovers_result.get("storage_range_days")
+
+        if storage_range:
+                min_days, max_days = storage_range
+
+                if min_days == max_days:
+                    st.caption(f"Storage guidance: {min_days} days")
+                else:
+                    st.caption(
+                        f"Storage guidance: {min_days}–{max_days} days"
+                    )
+
+        if leftovers_result.get("calculation_basis"):
+            st.caption(
+                f"Calculation basis: "
+                f"{leftovers_result['calculation_basis']}"
+            )
 
         if leftovers_result["reminder_status"] == "PAST_REMINDER":
             st.warning("⚠️ FoodSafety.gov reminder is overdue.")
@@ -135,6 +221,29 @@ def render_pantry_batch(item):
             st.caption(
                 f"Source: {leftovers_result['source']}"
             )
+
+    if (
+        not foodkeeper_result["recommended_use_date"]
+        and not leftovers_result["recommended_use_date"]
+    ):
+        st.caption("Use-soon reminder: Not calculated")
+        st.caption("Priority: UNKNOWN")
+
+        if (
+            adapted_item.get("food_type", "").strip().casefold()
+            == "cooked meat or poultry"
+        ):
+            guidance_reason = leftovers_result["reason"]
+        else:
+            guidance_reason = foodkeeper_result["reason"]
+
+        if guidance_reason:
+            st.caption(f"Reason: {guidance_reason}")
+
+    st.caption(
+        "Use-soon reminders are not food safety determinations. "
+        "Follow applicable package instructions and food safety guidance."
+    )
 
     osu_rule = find_osu_rule(item["name"])
 
