@@ -67,6 +67,8 @@ def identify_product(image_path):
         response.raise_for_status()
         data = response.json()
 
+    except requests.exceptions.JSONDecodeError:
+        return None, "Open Food Facts returned an invalid JSON response."
     except requests.RequestException as error:
         return None, f"Open Food Facts request failed: {error}"
     except ValueError:
