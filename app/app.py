@@ -40,6 +40,7 @@ from modules.recall_checker import (
     get_fda_recalls,
     get_usda_recalls,
     match_recall_to_product,
+    build_pantry_recall_fingerprint
 )
 
 from modules.recipe_recommender import (
@@ -1863,6 +1864,8 @@ if selected_page == "🧊 Food Safety":
         use_container_width=True,
         key="check_pantry_recalls"
     ):
+        st.session_state.pop("pantry_recall_screening", None)
+
         pantry_items = load_user_pantry(
             st.session_state.supabase_client
         )
@@ -1878,10 +1881,12 @@ if selected_page == "🧊 Food Safety":
 
             if usda_result["error"]:
                 st.warning(
-                    "USDA recall records could not be retrieved. "
+                    "USDA recall retrieval encountered a problem. "
+                    "Available records will still be screened. "
                     "Screening remains incomplete."
                 )
-            else:
+
+            if usda_result["records"]:
                 st.write(
                     "USDA records retrieved:",
                     len(usda_result["records"])
@@ -1907,6 +1912,7 @@ if selected_page == "🧊 Food Safety":
                             if match_key not in seen_matches:
                                 seen_matches.add(match_key)
                                 usda_matches.append({
+                                    "item_id": item["id"],
                                     "product": item["name"],
                                     "recall": recall,
                                 })
@@ -1949,10 +1955,10 @@ if selected_page == "🧊 Food Safety":
                 for product_name in unique_product_names:
                     result = get_fda_recalls(product_name, limit=10)
 
+                    fda_records.extend(result["records"])
+
                     if result["error"]:
                         fda_errors.append(product_name)
-                    else:
-                        fda_records.extend(result["records"])
 
             st.write(
                 "FDA recall records retrieved:",
@@ -1985,6 +1991,7 @@ if selected_page == "🧊 Food Safety":
                         if match_key not in seen_fda_matches:
                             seen_fda_matches.add(match_key)
                             fda_matches.append({
+                                "item_id": item["id"],
                                 "product": item["name"],
                                 "recall": recall,
                             })
@@ -2049,9 +2056,32 @@ if selected_page == "🧊 Food Safety":
                 "matches require product verification."
             )
 
+            flagged_item_ids = {
+                match["item_id"]
+                for match in usda_matches + fda_matches
+            }
+
+            item_recall_results = {
+                item["id"]: {
+                    "status": (
+                        "POSSIBLE_MATCH"
+                        if item["id"] in flagged_item_ids
+                        else "NO_MATCH"
+                    ),
+                    "check_status": "INCOMPLETE",
+                    "fda_retrieval_failed": item["name"].strip() in fda_errors,
+                    "usda_retrieval_failed": bool(usda_result["error"]),
+                }
+                for item in pantry_items
+            }
+
             st.session_state["pantry_recall_screening"] = {
+                "screened_at": datetime.now(timezone.utc).isoformat(),
                 "pantry_item_ids": sorted(
                     item["id"] for item in pantry_items
+                ),
+                "pantry_fingerprint": build_pantry_recall_fingerprint(
+                    pantry_items
                 ),
                 "usda_records_checked": len(usda_result["records"]),
                 "usda_name_overlaps": len(usda_matches),
@@ -2059,6 +2089,7 @@ if selected_page == "🧊 Food Safety":
                 "fda_records_checked": len(fda_records),
                 "fda_name_overlaps": len(fda_matches),
                 "fda_searches_failed": len(fda_errors),
+                "item_recall_results": item_recall_results,
                 "status": "INCOMPLETE",
             }
 

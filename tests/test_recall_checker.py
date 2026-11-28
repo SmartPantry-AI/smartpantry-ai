@@ -1,5 +1,13 @@
 from modules.recall_checker import normalize_recall_record
 from modules.recall_checker import match_recall_to_product
+from modules.recall_checker import build_pantry_recall_fingerprint
+from modules.recall_checker import is_recall_screening_current
+from modules.recall_checker import get_usda_recalls
+
+from datetime import datetime, timedelta, timezone
+
+
+
 
 def test_normalize_recall_record():
     record = {
@@ -773,6 +781,7 @@ def test_get_usda_recalls_success(monkeypatch):
                 "recalls": [
                     {
                         "recall_number": "TEST-001",
+                        "title": "Chicken Breast Recall",
                         "company": "Test Foods",
                         "classification": "Class I",
                     }
@@ -1423,6 +1432,249 @@ def test_generic_carrots_direct_product_match():
     result = match_recall_to_product(product, recall)
 
     assert result["status"] == "POSSIBLE_MATCH"
+
+def test_build_pantry_recall_fingerprint():
+    pantry = [
+        {
+            "id": 101,
+            "name": "Spinach",
+            "brand": "Dole",
+            "upc": "123456789012",
+            "lot_code": "ABC123",
+        }
+    ]
+
+    assert build_pantry_recall_fingerprint(pantry) == {
+        101: ("Spinach", "Dole", "123456789012", "ABC123")
+    }
+
+def test_recall_fingerprint_detects_identity_changes():
+    item = {
+        "id": 101,
+        "name": "Spinach",
+        "brand": "Dole",
+        "upc": "123456789012",
+        "lot_code": "ABC123",
+    }
+
+    original = build_pantry_recall_fingerprint([item])
+
+    changes = {
+        "id": 102,
+        "name": "Lettuce",
+        "brand": "Other Brand",
+        "upc": "999999999999",
+        "lot_code": "XYZ456",
+    }
+
+    for field, value in changes.items():
+        updated_item = {**item, field: value}
+
+        assert build_pantry_recall_fingerprint(
+            [updated_item]
+        ) != original
+
+def test_recall_fingerprint_ignores_unrelated_changes():
+    pantry = [
+        {"id": 101, "name": "Spinach", "quantity": 1},
+        {"id": 102, "name": "Rice", "quantity": 2},
+    ]
+
+    original = build_pantry_recall_fingerprint(pantry)
+
+    updated_pantry = [
+        {**pantry[1], "quantity": 5},
+        {**pantry[0], "storage_location": "REFRIGERATOR"},
+    ]
+
+    assert build_pantry_recall_fingerprint(
+        updated_pantry
+    ) == original
+
+def test_recall_screening_current_for_unchanged_pantry():
+    pantry = [{"id": 101, "name": "Spinach"}]
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry),
+        "screened_at": now.isoformat(),
+    }
+
+    assert is_recall_screening_current(
+        screening, pantry, as_of=now
+    ) is True
+
+def test_recall_screening_invalidated_by_inventory_changes():
+    pantry = [
+        {"id": 101, "name": "Spinach"},
+        {"id": 102, "name": "Rice"},
+    ]
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry)
+    }
+
+    expanded_pantry = pantry + [{"id": 103, "name": "Apple"}]
+    reduced_pantry = pantry[:1]
+
+    assert is_recall_screening_current(screening, expanded_pantry) is False
+    assert is_recall_screening_current(screening, reduced_pantry) is False
+
+def test_recall_screening_invalidated_by_metadata_change():
+    pantry = [
+        {"id": 101, "name": "Spinach", "lot_code": "ABC123"}
+    ]
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry)
+    }
+
+    updated_pantry = [
+        {**pantry[0], "lot_code": "XYZ456"}
+    ]
+
+    assert is_recall_screening_current(screening, updated_pantry) is False
+
+def test_recall_screening_rejects_missing_information():
+    pantry = [{"id": 101, "name": "Spinach"}]
+
+    assert is_recall_screening_current(None, pantry) is False
+    assert is_recall_screening_current({}, pantry) is False
+    assert is_recall_screening_current(
+        {"pantry_fingerprint": {}}, []
+    ) is False
+
+
+def test_recall_screening_validity_window():
+    pantry = [{"id": 101, "name": "Spinach"}]
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry),
+        "screened_at": now.isoformat(),
+    }
+
+    assert is_recall_screening_current(
+        screening, pantry,
+        as_of=now + timedelta(hours=23, minutes=59)
+    ) is True
+
+    assert is_recall_screening_current(
+        screening, pantry,
+        as_of=now + timedelta(hours=24)
+    ) is False
+
+    assert is_recall_screening_current(
+        screening, pantry,
+        as_of=now + timedelta(hours=25)
+    ) is False
+
+def test_recall_screening_rejects_future_timestamp():
+    pantry = [{"id": 101, "name": "Spinach"}]
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry),
+        "screened_at": (now + timedelta(hours=1)).isoformat(),
+    }
+
+    assert is_recall_screening_current(
+        screening, pantry, as_of=now
+    ) is False
+
+def test_recall_screening_rejects_invalid_timestamps():
+    pantry = [{"id": 101, "name": "Spinach"}]
+    now = datetime(2026, 11, 27, 12, 0, tzinfo=timezone.utc)
+
+    screening = {
+        "pantry_fingerprint": build_pantry_recall_fingerprint(pantry)
+    }
+
+    assert is_recall_screening_current(
+        screening, pantry, as_of=now
+    ) is False
+
+    for timestamp in (
+        None,
+        "",
+        "invalid-date",
+        "2026-11-27T12:00:00",
+    ):
+        screening["screened_at"] = timestamp
+
+        assert is_recall_screening_current(
+            screening, pantry, as_of=now
+        ) is False
+
+def test_usda_recalls_preserves_partial_results(monkeypatch):
+    from unittest.mock import Mock
+
+    response = Mock()
+    response.json.return_value = {
+        "recalls": [
+            {
+                "title": "Chicken Breast Recall",
+                "recall_number": "TEST-001",
+            },
+            None,
+            "invalid record",
+        ]
+    }
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        Mock(return_value=response),
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert len(result["records"]) == 1
+    assert result["records"][0]["recall_id"] == "TEST-001"
+    assert "2 invalid recall record(s)" in result["error"]
+
+def test_usda_recalls_rejects_invalid_titles(monkeypatch):
+    from unittest.mock import Mock
+
+    response = Mock()
+    response.json.return_value = {
+        "recalls": [
+            {},
+            {"title": ""},
+            {"title": "   "},
+            {"title": None},
+            {"title": 123},
+        ]
+    }
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        Mock(return_value=response),
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert result["records"] == []
+    assert "5 invalid recall record(s)" in result["error"]
+
+def test_usda_recalls_handles_empty_records(monkeypatch):
+    from unittest.mock import Mock
+
+    response = Mock()
+    response.json.return_value = {"recalls": []}
+
+    monkeypatch.setattr(
+        "modules.recall_checker.requests.get",
+        Mock(return_value=response),
+    )
+
+    result = get_usda_recalls()
+
+    assert result["check_status"] == "INCOMPLETE"
+    assert result["records"] == []
+    assert result["error"] is None
+
 
 
 

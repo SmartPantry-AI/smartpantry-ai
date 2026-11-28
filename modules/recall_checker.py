@@ -6,6 +6,8 @@
 import re
 import requests
 
+from datetime import datetime, timedelta, timezone
+
 RECALL_SOURCES = ("FDA", "USDA_FSIS")
 
 USDA_RECALL_API_URL = "https://foodsafetydata-api.onrender.com/api/recalls"
@@ -566,10 +568,68 @@ def get_usda_recalls():
         result["error"] = "USDA API response is missing a valid recalls list."
         return result
 
-    result["records"] = [
-        normalize_usda_recall(record)
-        for record in records
-    ]
+    invalid_records = 0
+
+    for record in records:
+        if (
+            not isinstance(record, dict)
+            or not isinstance(record.get("title"), str)
+            or not record["title"].strip()
+        ):
+            invalid_records += 1
+            continue
+
+        result["records"].append(
+            normalize_usda_recall(record)
+        )
+
+    if invalid_records:
+        result["error"] = (
+            f"USDA response contained {invalid_records} "
+            "invalid recall record(s)."
+        )
 
     return result
 
+def build_pantry_recall_fingerprint(pantry_items):
+    """Capture pantry product identities for recall screening validation."""
+
+    return {
+        item["id"]: (
+            item.get("name"),
+            item.get("brand"),
+            item.get("upc"),
+            item.get("lot_code"),
+        )
+        for item in pantry_items
+    }
+
+def is_recall_screening_current(
+    screening, pantry_items, *, as_of=None
+):
+    """Validate pantry identities and recall screening age."""
+
+    if not isinstance(screening, dict) or not pantry_items:
+        return False
+
+    if screening.get("pantry_fingerprint") != (
+        build_pantry_recall_fingerprint(pantry_items)
+    ):
+        return False
+
+    try:
+        screened_at = datetime.fromisoformat(
+            screening["screened_at"]
+        )
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    if screened_at.utcoffset() is None:
+        return False
+
+    if as_of is None:
+        as_of = datetime.now(timezone.utc)
+
+    age = as_of - screened_at
+
+    return timedelta(0) <= age < timedelta(hours=24)
