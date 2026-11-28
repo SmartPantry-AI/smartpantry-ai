@@ -79,12 +79,63 @@ def render_pantry_batch(item):
         st.caption(
             f"📦 Stored in: {storage_labels.get(storage_location, storage_location)}"
         )
+    else:
+        st.caption("📦 Stored in: Not specified")
+
 
     if item.get("purchase_date"):
         st.caption(f"📅 Purchased: {item['purchase_date']}")
 
     if item.get("expiration_date"):
         st.caption(f"🏷️ Package expiration / use-by: {item['expiration_date']}")
+
+    classification_labels = {
+        "REGULAR": "Regular ingredient",
+        "COOKED": "Cooked food / leftovers",
+    }
+
+    preparation_labels = {
+        "WHOLE": "Whole",
+        "CUT": "Cut",
+        "RAW": "Raw",
+        "COOKED": "Cooked",
+    }
+
+    package_labels = {
+        "OPENED": "Opened",
+        "UNOPENED": "Unopened",
+    }
+
+    food_classification = item.get("food_classification")
+    preparation_state = item.get("preparation_state")
+    package_state = item.get("package_state")
+
+    if food_classification:
+        st.caption(
+            f"Food classification: "
+            f"{classification_labels.get(food_classification, food_classification)}"
+        )
+
+    if preparation_state:
+        st.caption(
+            f"Preparation state: "
+            f"{preparation_labels.get(preparation_state, preparation_state)}"
+        )
+
+    if package_state:
+        st.caption(
+            f"Package state: "
+            f"{package_labels.get(package_state, package_state)}"
+        )
+
+    if item.get("prepared_date"):
+        st.caption(f"📅 Prepared: {item['prepared_date']}")
+
+    if item.get("opened_date"):
+        st.caption(f"📅 Opened: {item['opened_date']}")
+
+    if item.get("thawed_date"):
+        st.caption(f"📅 Thawed: {item['thawed_date']}")
 
     adapted_item = adapt_pantry_item(item)
 
@@ -101,6 +152,24 @@ def render_pantry_batch(item):
         st.caption(
             f"Priority: {foodkeeper_result['use_priority']}"
         )
+
+        storage_range = foodkeeper_result.get("storage_range_days")
+
+        if storage_range:
+            min_days, max_days = storage_range
+
+            if min_days == max_days:
+                st.caption(f"Storage guidance: {min_days} days")
+            else:
+                st.caption(
+                    f"Storage guidance: {min_days}–{max_days} days"
+                )
+
+        if foodkeeper_result.get("calculation_basis"):
+            st.caption(
+                f"Calculation basis: "
+                f"{foodkeeper_result['calculation_basis']}"
+            )
         
         if foodkeeper_result["reminder_status"] == "PAST_REMINDER":
             st.warning("⚠️ FoodKeeper reminder is overdue.")
@@ -125,6 +194,23 @@ def render_pantry_batch(item):
         st.caption(
             f"Priority: {leftovers_result['use_priority']}"
         )
+        storage_range = leftovers_result.get("storage_range_days")
+
+        if storage_range:
+                min_days, max_days = storage_range
+
+                if min_days == max_days:
+                    st.caption(f"Storage guidance: {min_days} days")
+                else:
+                    st.caption(
+                        f"Storage guidance: {min_days}–{max_days} days"
+                    )
+
+        if leftovers_result.get("calculation_basis"):
+            st.caption(
+                f"Calculation basis: "
+                f"{leftovers_result['calculation_basis']}"
+            )
 
         if leftovers_result["reminder_status"] == "PAST_REMINDER":
             st.warning("⚠️ FoodSafety.gov reminder is overdue.")
@@ -135,6 +221,30 @@ def render_pantry_batch(item):
             st.caption(
                 f"Source: {leftovers_result['source']}"
             )
+
+    if (
+        not foodkeeper_result["recommended_use_date"]
+        and not leftovers_result["recommended_use_date"]
+    ):
+        st.caption("Use-soon reminder: Not calculated")
+        st.caption("Priority: UNKNOWN")
+
+        if (
+            adapted_item.get("food_type", "").strip().casefold()
+            == "cooked meat or poultry"
+        ):
+            guidance_reason = leftovers_result["reason"]
+        else:
+            guidance_reason = foodkeeper_result["reason"]
+
+        if guidance_reason:
+            st.caption(f"Reason: {guidance_reason}")
+
+    st.caption(
+        "Use-soon reminders are not food safety determinations. "
+        "Follow applicable package instructions and food safety guidance."
+    )
+
 
     osu_rule = find_osu_rule(item["name"])
 
@@ -168,6 +278,20 @@ st.set_page_config(
 
 def render_mochi_chat():
     """Display Mochi's chat interface."""
+
+    if st.session_state.pop("mochi_storage_reset", False):
+        for key in (
+            "mochi_storage_location",
+            "mochi_purchase_date",
+            "mochi_expiration_date",
+            "mochi_food_classification",
+            "mochi_preparation_state",
+            "mochi_package_state",
+            "mochi_prepared_date",
+            "mochi_opened_date",
+            "mochi_thawed_date",
+        ):
+            st.session_state.pop(key, None)
 
     if "mochi_messages" not in st.session_state:
         st.session_state.mochi_messages = []
@@ -205,6 +329,105 @@ def render_mochi_chat():
             f"{pending_command['ingredient']}"
         )
 
+        with st.expander("Optional storage details", expanded=False):
+            st.caption(
+                "Add storage information for more accurate "
+                "use-soon reminders. Leave unknown details blank."
+            )
+
+            mochi_storage_location = st.selectbox(
+                "Storage location",
+                options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REFRIGERATOR": "Refrigerator",
+                    "FREEZER": "Freezer",
+                    "PANTRY": "Pantry",
+                }[value],
+                key="mochi_storage_location",
+            )
+
+            mochi_purchase_date = st.date_input(
+                "Purchase date (optional)",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="mochi_purchase_date",
+            )
+
+            mochi_expiration_date = st.date_input(
+                "Package expiration date (optional)",
+                value=None,
+                format="MM/DD/YYYY",
+                key="mochi_expiration_date",
+            )
+
+            mochi_food_classification = st.selectbox(
+                "Food classification",
+                options=["", "REGULAR", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REGULAR": "Regular ingredient",
+                    "COOKED": "Cooked food / leftovers",
+                }[value],
+                key="mochi_food_classification",
+            )
+
+            mochi_preparation_state = st.selectbox(
+                "Preparation state",
+                options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "WHOLE": "Whole",
+                    "CUT": "Cut",
+                    "RAW": "Raw",
+                    "COOKED": "Cooked",
+                }[value],
+                key="mochi_preparation_state",
+            )
+
+            mochi_prepared_date = None
+
+            if mochi_food_classification == "COOKED":
+                mochi_prepared_date = st.date_input(
+                    "Date prepared",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    key="mochi_prepared_date",
+                )
+
+            mochi_package_state = st.selectbox(
+                "Package state",
+                options=["", "UNOPENED", "OPENED"],
+                format_func=lambda value: {
+                    "": "Not specified / not applicable",
+                    "UNOPENED": "Unopened",
+                    "OPENED": "Opened",
+                }[value],
+                key="mochi_package_state",
+            )
+
+            mochi_opened_date = None
+
+            if mochi_package_state == "OPENED":
+                mochi_opened_date = st.date_input(
+                    "Date opened",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    key="mochi_opened_date",
+                )
+
+            mochi_thawed_date = st.date_input(
+                "Date thawed (optional)",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                help="Leave blank if not applicable or unknown.",
+                key="mochi_thawed_date",
+            )
+
         confirm_col, cancel_col = st.columns(2)
 
         with confirm_col:
@@ -213,6 +436,17 @@ def render_mochi_chat():
                     result = handle_supabase_pantry_command(
                         pending_command,
                         st.session_state.supabase_client,
+                        storage_metadata={
+                            "storage_location": mochi_storage_location or None,
+                            "purchase_date": mochi_purchase_date.isoformat() if mochi_purchase_date else None,
+                            "expiration_date": mochi_expiration_date.isoformat() if mochi_expiration_date else None,
+                            "food_classification": mochi_food_classification or None,
+                            "preparation_state": mochi_preparation_state or None,
+                            "package_state": mochi_package_state or None,
+                            "prepared_date": mochi_prepared_date.isoformat() if mochi_prepared_date else None,
+                            "opened_date": mochi_opened_date.isoformat() if mochi_opened_date else None,
+                            "thawed_date": mochi_thawed_date.isoformat() if mochi_thawed_date else None,
+                        },
                     )
 
                     if not result:
@@ -228,7 +462,12 @@ def render_mochi_chat():
                     })
 
                     del st.session_state["mochi_pending_pantry_command"]
+                    st.session_state["mochi_storage_reset"] = True
+                    st.session_state.pop("pantry_manager", None)
                     st.rerun()
+
+                except ValueError as error:
+                    st.warning(str(error))
 
                 except Exception:
                     st.error(
@@ -239,6 +478,7 @@ def render_mochi_chat():
         with cancel_col:
             if st.button("Cancel", key="mochi_cancel_add"):
                 del st.session_state["mochi_pending_pantry_command"]
+                st.session_state["mochi_storage_reset"] = True
 
                 st.session_state.mochi_messages.append({
                     "role": "assistant",
@@ -279,6 +519,7 @@ def render_mochi_chat():
             try:
                 command = interpret_pantry_request(message_text)
                 st.session_state["mochi_pending_pantry_command"] = command
+                st.session_state["mochi_storage_reset"] = True
 
                 mochi_response = (
                     f"Would you like me to add "
@@ -633,7 +874,11 @@ if selected_page == "🥕 My Pantry":
         st.session_state["manual_purchase_date"] = None
         st.session_state["manual_expiration_date"] = None
         st.session_state["manual_storage_location"] = ""
-        st.session_state["manual_food_classification"] = "Regular ingredient"
+        st.session_state["manual_food_classification"] = ""
+        st.session_state["manual_preparation_state"] = ""
+        st.session_state["manual_package_state"] = ""
+        st.session_state["manual_opened_date"] = None
+        st.session_state["manual_thawed_date"] = None
         st.session_state["manual_prepared_date"] = None
 
     if st.session_state.pop("manual_entry_success", False):
@@ -650,13 +895,31 @@ if selected_page == "🥕 My Pantry":
 
     food_classification = st.selectbox(
         "Food classification",
-        options=["Regular ingredient", "Cooked food / leftovers"],
+        options=["", "REGULAR", "COOKED"],
+        format_func=lambda value: {
+            "": "Select food classification",
+            "REGULAR": "Regular ingredient",
+            "COOKED": "Cooked food / leftovers",
+        }[value],
         key="manual_food_classification",
+    )
+
+    preparation_state = st.selectbox(
+        "Preparation state",
+        options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+        format_func=lambda value: {
+            "": "Select preparation state",
+            "WHOLE": "Whole",
+            "CUT": "Cut / sliced",
+            "RAW": "Raw",
+            "COOKED": "Cooked",
+        }[value],
+        key="manual_preparation_state",
     )
 
     prepared_date = None
 
-    if food_classification == "Cooked food / leftovers":
+    if food_classification == "COOKED":
         prepared_date = st.date_input(
             "Date prepared",
             value=None,
@@ -664,6 +927,37 @@ if selected_page == "🥕 My Pantry":
             format="MM/DD/YYYY",
             key="manual_prepared_date",
         )
+
+    package_state = st.selectbox(
+        "Package state",
+        options=["", "UNOPENED", "OPENED"],
+        format_func=lambda value: {
+            "": "Not specified / not applicable",
+            "UNOPENED": "Unopened",
+            "OPENED": "Opened",
+        }[value],
+        key="manual_package_state",
+    )
+
+    opened_date = None
+
+    if package_state == "OPENED":
+        opened_date = st.date_input(
+            "Date opened",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="manual_opened_date",
+        )
+
+    thawed_date = st.date_input(
+        "Date thawed (if previously frozen)",
+        value=None,
+        max_value=date.today(),
+        format="MM/DD/YYYY",
+        key="manual_thawed_date",
+        help="Leave blank if not applicable or unknown.",
+    )
 
     quantity_column, unit_column = st.columns(2, gap="large")
 
@@ -716,6 +1010,45 @@ if selected_page == "🥕 My Pantry":
         type="primary",
         use_container_width=True
     ):
+
+        if (
+            food_classification == "COOKED"
+            and preparation_state in ("WHOLE", "CUT", "RAW")
+        ):
+            st.warning(
+                "For cooked food, select Cooked as the preparation "
+                "state or leave it unspecified."
+            )
+            st.stop()
+
+        if (
+            food_classification == "REGULAR"
+            and preparation_state == "COOKED"
+        ):
+            st.warning(
+                "Please select Cooked food / leftovers "
+                "as the food classification."
+            )
+            st.stop()
+
+        if purchase_date and purchase_date > date.today():
+            st.warning("Purchase date cannot be in the future.")
+            st.stop()
+
+        if purchase_date and opened_date:
+            if opened_date < purchase_date:
+                st.warning(
+                    "Opening date cannot precede the purchase date."
+                )
+                st.stop()
+
+        if purchase_date and thawed_date:
+            if thawed_date < purchase_date:
+                st.warning(
+                    "Thawing date cannot precede the purchase date."
+                )
+                st.stop()
+
         if ingredient_name.strip():
             try:
                 add_pantry_item(
@@ -727,7 +1060,12 @@ if selected_page == "🥕 My Pantry":
                     expiration_date=expiration_date.isoformat() if expiration_date else None,
                     storage_location=storage_location or None,
                     prepared_date=prepared_date.isoformat() if prepared_date else None,
-                )
+                    food_classification=food_classification or None,
+                    preparation_state=preparation_state or None,
+                    package_state=package_state or None,
+                    opened_date=opened_date.isoformat() if opened_date else None,
+                    thawed_date=thawed_date.isoformat() if thawed_date else None,
+                )   
 
                 st.session_state.pantry_manager.add_item(
                     ingredient_name.strip(),
@@ -896,17 +1234,23 @@ if selected_page == "📷 Scan Food":
             st.success("Ingredient successfully saved to your pantry!")
 
         def clear_image_recognition():
-           st.session_state.recognized_food = None
+            st.session_state.recognized_food = None
 
-           for key in (
-               "confirmed_image_name",
-               "confirmed_image_quantity",
-               "confirmed_image_unit",
-               "confirmed_image_storage",
-               "confirmed_image_purchase_date",
-               "confirmed_image_expiration_date",
+            for key in (
+                "confirmed_image_name",
+                "confirmed_image_quantity",
+                "confirmed_image_unit",
+                "confirmed_image_storage",
+                "confirmed_image_purchase_date",
+                "confirmed_image_expiration_date",
+                "confirmed_image_food_classification",
+                "confirmed_image_preparation_state",
+                "confirmed_image_package_state",
+                "confirmed_image_prepared_date",
+                "confirmed_image_opened_date",
+                "confirmed_image_thawed_date",
             ):
-               st.session_state.pop(key, None)
+                st.session_state.pop(key, None)
 
 
         if st.session_state.pop("reset_image_entry", False):
@@ -1023,6 +1367,72 @@ if selected_page == "📷 Scan Food":
                     key="confirmed_image_expiration_date",
                 )
 
+                confirmed_image_food_classification = st.selectbox(
+                    "Food classification",
+                    options=["", "REGULAR", "COOKED"],
+                    format_func=lambda value: {
+                        "": "Not specified",
+                        "REGULAR": "Regular ingredient",
+                        "COOKED": "Cooked food / leftovers",
+                    }[value],
+                    key="confirmed_image_food_classification",
+                )
+
+                confirmed_image_prepared_date = None
+
+                if confirmed_image_food_classification == "COOKED":
+                    confirmed_image_prepared_date = st.date_input(
+                        "Date prepared",
+                        value=None,
+                        max_value=date.today(),
+                        format="MM/DD/YYYY",
+                        key="confirmed_image_prepared_date",
+                    )
+
+                confirmed_image_preparation_state = st.selectbox(
+                    "Preparation state",
+                    options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                    format_func=lambda value: {
+                        "": "Not specified",
+                        "WHOLE": "Whole",
+                        "CUT": "Cut / sliced",
+                        "RAW": "Raw",
+                        "COOKED": "Cooked",
+                    }[value],
+                    key="confirmed_image_preparation_state",
+                )
+
+                confirmed_image_package_state = st.selectbox(
+                    "Package state",
+                    options=["", "UNOPENED", "OPENED"],
+                    format_func=lambda value: {
+                        "": "Not specified / not applicable",
+                        "UNOPENED": "Unopened",
+                        "OPENED": "Opened",
+                    }[value],
+                    key="confirmed_image_package_state",
+                )
+
+                confirmed_image_opened_date = None
+
+                if confirmed_image_package_state == "OPENED":
+                    confirmed_image_opened_date = st.date_input(
+                        "Date opened",
+                        value=None,
+                        max_value=date.today(),
+                        format="MM/DD/YYYY",
+                        key="confirmed_image_opened_date",
+                    )
+
+                confirmed_image_thawed_date = st.date_input(
+                    "Date thawed (optional)",
+                    value=None,
+                    max_value=date.today(),
+                    format="MM/DD/YYYY",
+                    help="Leave blank if not applicable or unknown.",
+                    key="confirmed_image_thawed_date",
+                )
+
                 if st.button(
                     "➕ Save Recognized Ingredient to Pantry",
                     use_container_width=True,
@@ -1030,6 +1440,45 @@ if selected_page == "📷 Scan Food":
                 ):
                     if not confirmed_image_name.strip():
                         st.warning("Please enter an ingredient name.")
+
+                    elif (
+                        confirmed_image_food_classification == "COOKED"
+                        and confirmed_image_preparation_state in ["WHOLE", "CUT", "RAW"]
+                    ):
+                        st.warning(
+                            "For cooked food, select Cooked as the preparation "
+                            "state or leave it unspecified."
+                        )
+
+                    elif (
+                        confirmed_image_food_classification == "REGULAR"
+                        and confirmed_image_preparation_state == "COOKED"
+                    ):
+                        st.warning(
+                            "Please select Cooked food / leftovers "
+                            "as the food classification."
+                        )
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_purchase_date > date.today()
+                    ):
+                        st.warning("Purchase date cannot be in the future.")
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_opened_date
+                        and confirmed_image_opened_date < confirmed_image_purchase_date
+                    ):
+                        st.warning("Opening date cannot precede the purchase date.")
+
+                    elif (
+                        confirmed_image_purchase_date
+                        and confirmed_image_thawed_date
+                        and confirmed_image_thawed_date < confirmed_image_purchase_date
+                    ):
+                        st.warning("Thawing date cannot precede the purchase date.")
+
                     else:
                         try:
                             add_pantry_item(
@@ -1046,6 +1495,21 @@ if selected_page == "📷 Scan Food":
                                     if confirmed_image_expiration_date else None
                                 ),
                                 storage_location=confirmed_image_storage or None,
+                                prepared_date=(
+                                    confirmed_image_prepared_date.isoformat()
+                                    if confirmed_image_prepared_date else None
+                                ),
+                                food_classification=confirmed_image_food_classification or None,
+                                preparation_state=confirmed_image_preparation_state or None,
+                                package_state=confirmed_image_package_state or None,
+                                opened_date=(
+                                    confirmed_image_opened_date.isoformat()
+                                    if confirmed_image_opened_date else None
+                                ),
+                                thawed_date=(
+                                    confirmed_image_thawed_date.isoformat()
+                                    if confirmed_image_thawed_date else None
+                                ),
                             )
 
                             st.session_state.pantry_manager.add_item(
@@ -1066,10 +1530,31 @@ if selected_page == "📷 Scan Food":
         st.subheader("📦 Barcode Product Lookup")
         st.caption("Scan a product barcode to retrieve its details from Open Food Facts.")
 
+        def clear_barcode_recognition():
+            st.session_state.identified_barcode_product = None
+
+            for key in (
+                "confirmed_barcode_name",
+                "confirmed_barcode_quantity",
+                "confirmed_barcode_unit",
+                "confirmed_barcode_purchase_date",
+                "confirmed_barcode_expiration_date",
+                "confirmed_barcode_storage_location",
+                "confirmed_barcode_lot_code",
+                "confirmed_barcode_food_classification",
+                "confirmed_barcode_preparation_state",
+                "confirmed_barcode_package_state",
+                "confirmed_barcode_prepared_date",
+                "confirmed_barcode_opened_date",
+                "confirmed_barcode_thawed_date",
+            ):
+                st.session_state.pop(key, None)
+
         barcode_image = st.file_uploader(
             "Upload a photo of a product barcode",
             type=["jpg", "jpeg", "png"],
-            key="barcode_upload"
+            key="barcode_upload",
+            on_change=clear_barcode_recognition,
         )
 
         if barcode_image is not None:
@@ -1114,6 +1599,13 @@ if selected_page == "📷 Scan Food":
                         st.session_state.confirmed_barcode_expiration_date = None
                         st.session_state.confirmed_barcode_storage_location = ""
                         st.session_state.confirmed_barcode_lot_code = ""
+
+                        st.session_state.confirmed_barcode_food_classification = ""
+                        st.session_state.confirmed_barcode_preparation_state = ""
+                        st.session_state.confirmed_barcode_package_state = ""
+                        st.session_state.confirmed_barcode_prepared_date = None
+                        st.session_state.confirmed_barcode_opened_date = None
+                        st.session_state.confirmed_barcode_thawed_date = None
 
                         st.success("Product identified!")
                         st.write("Product:", product.get("product_name"))
@@ -1184,6 +1676,69 @@ if selected_page == "📷 Scan Food":
                 key="confirmed_barcode_lot_code"
             )
 
+            confirmed_food_classification = st.selectbox(
+                "Food classification",
+                options=["", "REGULAR", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "REGULAR": "Regular ingredient",
+                    "COOKED": "Cooked food / leftovers",
+                }[value],
+                key="confirmed_barcode_food_classification",
+            )
+
+            confirmed_prepared_date = None
+
+            if confirmed_food_classification == "COOKED":
+                confirmed_prepared_date = st.date_input(
+                    "Date prepared",
+                    value=None,
+                    max_value=date.today(),
+                    key="confirmed_barcode_prepared_date",
+                )
+
+            confirmed_preparation_state = st.selectbox(
+                "Preparation state",
+                options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+                format_func=lambda value: {
+                    "": "Not specified",
+                    "WHOLE": "Whole",
+                    "CUT": "Cut / sliced",
+                    "RAW": "Raw",
+                    "COOKED": "Cooked",
+                }[value],
+                key="confirmed_barcode_preparation_state",
+            )
+
+            confirmed_package_state = st.selectbox(
+                "Package state",
+                options=["", "UNOPENED", "OPENED"],
+                format_func=lambda value: {
+                    "": "Not specified / not applicable",
+                    "UNOPENED": "Unopened",
+                    "OPENED": "Opened",
+                }[value],
+                key="confirmed_barcode_package_state",
+            )
+
+            confirmed_opened_date = None
+
+            if confirmed_package_state == "OPENED":
+                confirmed_opened_date = st.date_input(
+                    "Date opened",
+                    value=None,
+                    max_value=date.today(),
+                    key="confirmed_barcode_opened_date",
+                )
+
+            confirmed_thawed_date = st.date_input(
+                "Date thawed (optional)",
+                value=None,
+                max_value=date.today(),
+                help="Leave blank if the product was not previously frozen.",
+                key="confirmed_barcode_thawed_date",
+            )
+
             if st.button(
                 "✅ Confirm and Add to Pantry",
                 type="primary",
@@ -1191,6 +1746,45 @@ if selected_page == "📷 Scan Food":
             ):
                 if not confirmed_name.strip():
                     st.warning("Please enter a product name.")
+
+                elif (
+                    confirmed_food_classification == "COOKED"
+                    and confirmed_preparation_state in ["WHOLE", "CUT", "RAW"]
+                ):
+                    st.warning(
+                        "For cooked food, select Cooked as the preparation "
+                        "state or leave it unspecified."
+                    )
+
+                elif (
+                    confirmed_food_classification == "REGULAR"
+                    and confirmed_preparation_state == "COOKED"
+                ):
+                    st.warning(
+                        "Please select Cooked food / leftovers "
+                        "as the food classification."
+                    )
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_purchase_date > date.today()
+                ):
+                    st.warning("Purchase date cannot be in the future.")
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_opened_date
+                    and confirmed_opened_date < confirmed_purchase_date
+                ):
+                    st.warning("Opening date cannot precede the purchase date.")
+
+                elif (
+                    confirmed_purchase_date
+                    and confirmed_thawed_date
+                    and confirmed_thawed_date < confirmed_purchase_date
+                ):
+                    st.warning("Thawing date cannot precede the purchase date.")
+
                 else:
                     try:
                         add_pantry_item(
@@ -1210,6 +1804,21 @@ if selected_page == "📷 Scan Food":
                             brand=product_to_confirm.get("brand"),
                             upc=product_to_confirm.get("barcode"),
                             lot_code=confirmed_lot_code.strip() or None,
+                            prepared_date=(
+                                confirmed_prepared_date.isoformat()
+                                if confirmed_prepared_date else None
+                            ),
+                            food_classification=confirmed_food_classification or None,
+                            preparation_state=confirmed_preparation_state or None,
+                            package_state=confirmed_package_state or None,
+                            opened_date=(
+                                confirmed_opened_date.isoformat()
+                                if confirmed_opened_date else None
+                            ),
+                            thawed_date=(
+                                confirmed_thawed_date.isoformat()
+                                if confirmed_thawed_date else None
+                            ),
                         )
 
                         st.session_state.pantry_manager = PantryManager()
@@ -1470,17 +2079,105 @@ if selected_page == "🧊 Food Safety":
 
     with storage_column:
         st.subheader("🧊 Food Storage Recommendations")
-        st.caption("Check available FoodKeeper guidance for refrigerated ingredients.")
-        st.caption("Storage location: Refrigerator")
+        st.caption(
+            "Explore available storage guidance without "
+            "adding an item to your pantry."
+        )
+        st.caption(
+            "Provide known storage details. "
+            "Leave unknown information unspecified."
+        )
 
         storage_food = st.text_input(
             "Ingredient for storage guidance",
-            value="carrots"
+            placeholder="e.g., apple, carrots, cheddar cheese",
+            key="storage_checker_food",
+        )
+
+        storage_location = st.selectbox(
+            "Storage location",
+            options=["", "REFRIGERATOR", "FREEZER", "PANTRY"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "REFRIGERATOR": "Refrigerator",
+                "FREEZER": "Freezer",
+                "PANTRY": "Pantry / room temperature",
+            }[value],
+            key="storage_checker_location",
         )
 
         purchase_date = st.date_input(
-            "Purchase date",
-            value=date.today()
+            "Purchase date (optional)",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            key="storage_checker_purchase_date",
+        )
+
+        food_classification = st.selectbox(
+            "Food classification",
+            options=["", "REGULAR", "COOKED"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "REGULAR": "Regular ingredient",
+                "COOKED": "Cooked food / leftovers",
+            }[value],
+            key="storage_checker_food_classification",
+        )
+
+        prepared_date = None
+
+        if food_classification == "COOKED":
+            prepared_date = st.date_input(
+                "Date prepared",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="storage_checker_prepared_date",
+            )
+
+        preparation_state = st.selectbox(
+            "Preparation state",
+            options=["", "WHOLE", "CUT", "RAW", "COOKED"],
+            format_func=lambda value: {
+                "": "Not specified",
+                "WHOLE": "Whole",
+                "CUT": "Cut",
+                "RAW": "Raw",
+                "COOKED": "Cooked",
+            }[value],
+            key="storage_checker_preparation_state",
+        )
+
+        package_state = st.selectbox(
+            "Package state",
+            options=["", "UNOPENED", "OPENED"],
+            format_func=lambda value: {
+                "": "Not specified / not applicable",
+                "UNOPENED": "Unopened",
+                "OPENED": "Opened",
+            }[value],
+            key="storage_checker_package_state",
+        )
+
+        opened_date = None
+
+        if package_state == "OPENED":
+            opened_date = st.date_input(
+                "Date opened",
+                value=None,
+                max_value=date.today(),
+                format="MM/DD/YYYY",
+                key="storage_checker_opened_date",
+            )
+
+        thawed_date = st.date_input(
+            "Date thawed (optional)",
+            value=None,
+            max_value=date.today(),
+            format="MM/DD/YYYY",
+            help="Leave blank if not applicable or unknown.",
+            key="storage_checker_thawed_date",
         )
 
         if st.button(
@@ -1488,40 +2185,144 @@ if selected_page == "🧊 Food Safety":
             type="primary",
             use_container_width=True
         ):
-            item = {
-                "item_id": "storage-demo-001",
-                "food_type": storage_food,
-                "storage_location": "REFRIGERATOR",
-                "purchase_date": purchase_date.isoformat()
-            }
 
-            result = evaluate_foodkeeper(
-                item,
-                as_of=date.today()
-            )
-            st.markdown("#### 📋 Storage Guidance Results")
+            if not storage_food.strip():
+                st.warning("Please enter an ingredient name.")
 
-            if result["use_priority"] == "UNKNOWN":
-                st.warning(result["reason"])
-            else:
-                st.success(
-                    f"Recommended use reminder: "
-                    f"{result['recommended_use_date']}"
+            elif (
+                food_classification == "COOKED"
+                and preparation_state in ("WHOLE", "CUT", "RAW")
+            ):
+                st.warning(
+                    "For cooked food, select Cooked as the "
+                    "preparation state or leave it unspecified."
                 )
 
-            if result["use_priority"] != "UNKNOWN":
-                priority_column, days_column = st.columns(2, gap="large")
+            elif (
+                food_classification == "REGULAR"
+                and preparation_state == "COOKED"
+            ):
+                st.warning(
+                    "Please select Cooked food / leftovers "
+                    "as the food classification."
+                )
 
-                with priority_column:
-                    st.metric("Use Priority", result["use_priority"])
+            elif purchase_date and purchase_date > date.today():
+                st.warning("Purchase date cannot be in the future.")
 
-                with days_column:
-                    st.metric("Days Remaining", result["days_remaining"])
+            elif purchase_date and opened_date and opened_date < purchase_date:
+                st.warning("Opening date cannot precede the purchase date.")
+
+            elif purchase_date and thawed_date and thawed_date < purchase_date:
+                st.warning("Thawing date cannot precede the purchase date.")
+
+            else:
+
+                item = {
+                    "item_id": "storage-demo-001",
+                    "food_type": storage_food.strip(),
+                    "storage_location": storage_location or None,
+                    "purchase_date": purchase_date.isoformat() if purchase_date else None,
+                    "food_classification": food_classification or None,
+                    "preparation_state": preparation_state or None,
+                    "package_state": package_state or None,
+                    "prepared_date": prepared_date.isoformat() if prepared_date else None,
+                    "opened_date": opened_date.isoformat() if opened_date else None,
+                    "thawed_date": thawed_date.isoformat() if thawed_date else None,
+                }
+
+                foodkeeper_result = evaluate_foodkeeper(
+                    item,
+                    as_of=date.today()
+                )
+
+                leftovers_result = evaluate_leftovers(
+                    item,
+                    as_of=date.today()
+                )
+
+                if storage_food.strip().casefold() == "cooked meat or poultry":
+                    result = leftovers_result
+                else:
+                    result = foodkeeper_result
+
+                st.markdown("#### 📋 Storage Guidance Results")
+
+                if result["use_priority"] == "UNKNOWN":
+                    st.warning("Use-soon reminder: Not calculated")
+                    st.caption("Priority: UNKNOWN")
+                    st.caption(f"Reason: {result['reason']}")
+
+                else:
+                    st.success(
+                        f"Recommended use reminder: "
+                        f"{result['recommended_use_date']}"
+                    )
+
+                    priority_column, days_column = st.columns(2, gap="large")
+
+                    with priority_column:
+                        st.metric("Use Priority", result["use_priority"])
+
+                    with days_column:
+                        st.metric("Days Remaining", result["days_remaining"])
+
+                    storage_range = result.get("storage_range_days")
+
+                    if storage_range:
+                        min_days, max_days = storage_range
+
+                        if min_days == max_days:
+                            st.caption(f"Storage guidance: {min_days} days")
+                        else:
+                            st.caption(
+                                f"Storage guidance: {min_days}–{max_days} days"
+                            )
+
+                    if result.get("calculation_basis"):
+                        st.caption(
+                            f"Calculation basis: "
+                            f"{result['calculation_basis']}"
+                        )
+
+                    if result["reminder_status"] == "PAST_REMINDER":
+                        st.warning(
+                            "The recommended use reminder has passed."
+                        )
+
+                    elif result["days_remaining"] == 0:
+                        st.info(
+                            "The recommended use reminder is due today."
+                        )
+
+                    if result.get("source"):
+                        st.caption(f"Source: {result['source']}")
 
                 st.caption(
-                    "This is a use-soon reminder, not a food safety determination."
+                    "Use-soon reminders are not food safety determinations. "
+                    "Follow applicable package instructions and food safety guidance."
                 )
+                osu_rule = find_osu_rule(storage_food.strip())
 
+                if (
+                    osu_rule is not None
+                    and storage_location == osu_rule["storage_location"]
+                ):
+                    st.caption(
+                        f"🌿 OSU Extension storage guidance: "
+                        f"{osu_rule['duration_raw']}"
+                    )
+                    st.caption(
+                        f"Recommended temperature: "
+                        f"{osu_rule['storage_temperature_raw']}"
+                    )
+                    st.caption(
+                        "Approximate storage time for best quality; "
+                        "not a calculated expiration date."
+                    )
+                    st.caption(
+                        f"Source: {osu_rule['source_url']}"
+                    )
 
     with recall_column:
         st.subheader("🚨 Food Recall Checker")

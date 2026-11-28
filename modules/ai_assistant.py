@@ -1,6 +1,7 @@
 import os
 import json
 import math
+from datetime import date
 from openai import OpenAI
 from dotenv import load_dotenv
 from modules.pantry_manager import PantryManager
@@ -207,7 +208,7 @@ def confirm_pantry_command(command, pantry, confirmed):
     return handle_pantry_command(command, pantry)
 
 
-def handle_supabase_pantry_command(command, client):
+def handle_supabase_pantry_command(command, client, *, storage_metadata=None):
     """Add a confirmed pantry item to the authenticated user's Supabase pantry."""
 
     if not isinstance(command, dict):
@@ -236,11 +237,127 @@ def handle_supabase_pantry_command(command, client):
 
     from modules.supabase_pantry import add_pantry_item
 
+    allowed_storage_fields = (
+        "purchase_date",
+        "expiration_date",
+        "storage_location",
+        "prepared_date",
+        "food_classification",
+        "preparation_state",
+        "package_state",
+        "opened_date",
+        "thawed_date",
+    )
+
+    if storage_metadata is not None and not isinstance(storage_metadata, dict):
+        raise ValueError("Storage metadata must be a dictionary.")
+
+    metadata = storage_metadata or {}
+
+    allowed_values = {
+        "storage_location": {"REFRIGERATOR", "FREEZER", "PANTRY"},
+        "food_classification": {"REGULAR", "COOKED"},
+        "preparation_state": {"WHOLE", "CUT", "RAW", "COOKED"},
+        "package_state": {"OPENED", "UNOPENED"},
+    }
+
+    for field, valid_values in allowed_values.items():
+        value = metadata.get(field)
+
+        if value is not None:
+            if not isinstance(value, str) or value not in valid_values:
+                raise ValueError(f"Invalid {field}.")
+
+    food_classification = metadata.get("food_classification")
+    preparation_state = metadata.get("preparation_state")
+
+    if (
+        food_classification == "COOKED"
+        and preparation_state in {"WHOLE", "CUT", "RAW"}
+    ):
+        raise ValueError(
+            "For cooked food, select Cooked as the preparation "
+            "state or leave it unspecified."
+        )
+
+    if (
+        food_classification == "REGULAR"
+        and preparation_state == "COOKED"
+    ):
+        raise ValueError(
+            "Please select Cooked food / leftovers "
+            "as the food classification."
+        )
+
+    date_fields = (
+        "purchase_date",
+        "expiration_date",
+        "prepared_date",
+        "opened_date",
+        "thawed_date",
+    )
+
+    parsed_dates = {}
+
+    for field in date_fields:
+        value = metadata.get(field)
+
+        if value is None:
+            continue
+
+        if not isinstance(value, str):
+            raise ValueError(f"Invalid {field}. Expected YYYY-MM-DD.")
+
+        try:
+            parsed_date = date.fromisoformat(value)
+        except ValueError:
+            raise ValueError(
+                f"Invalid {field}. Expected YYYY-MM-DD."
+            ) from None
+
+        if parsed_date.isoformat() != value:
+            raise ValueError(f"Invalid {field}. Expected YYYY-MM-DD.")
+
+        parsed_dates[field] = parsed_date
+
+    today = date.today()
+
+    for field in (
+        "purchase_date",
+        "prepared_date",
+        "opened_date",
+        "thawed_date",
+    ):
+        if field in parsed_dates and parsed_dates[field] > today:
+            label = field.replace("_", " ").capitalize()
+            raise ValueError(f"{label} cannot be in the future.")
+
+    purchase_date = parsed_dates.get("purchase_date")
+    opened_date = parsed_dates.get("opened_date")
+    thawed_date = parsed_dates.get("thawed_date")
+
+    if purchase_date and opened_date and opened_date < purchase_date:
+        raise ValueError(
+            "Opening date cannot precede the purchase date."
+        )
+
+    if purchase_date and thawed_date and thawed_date < purchase_date:
+        raise ValueError(
+            "Thawing date cannot precede the purchase date."
+        )
+
+    storage_fields = {
+        field: metadata[field]
+        for field in allowed_storage_fields
+        if field in metadata
+    }
+
     return add_pantry_item(
         client=client,
         name=command["ingredient"],
         quantity=command["quantity"],
         unit=command["unit"],
+        **storage_fields,
     )
 
 

@@ -1,18 +1,18 @@
-food_name,foodkeeper_category,fridge_days_min,fridge_days_max,basis,note,source
-milk,Dairy Products & Eggs,,,package use-by date,FoodKeeper has no number for milk - it says follow the package use-by date. Returns UNKNOWN.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-yogurt,Dairy Products & Eggs,7,14,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"cheese, hard (cheddar, swiss)",Dairy Products & Eggs,21,28,after opening,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"eggs, in shell",Dairy Products & Eggs,21,35,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"lettuce, leaf / spinach",Produce - Fresh Vegetables,3,7,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"lettuce, iceberg / romaine",Produce - Fresh Vegetables,7,14,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-carrots,Produce - Fresh Vegetables,14,21,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-broccoli,Produce - Fresh Vegetables,3,5,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-cherry tomatoes,Produce - Fresh Vegetables,5,5,refrigerated,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-potatoes,Produce - Fresh Vegetables,7,14,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-apples,Produce - Fresh Fruits,28,42,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-bananas,Produce - Fresh Fruits,3,3,refrigerated,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"chicken parts, boneless breast",Poultry - Fresh,1,2,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-tofu,Vegetarian Proteins,7,7,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-cooked pasta,Deli & Prepared Foods,3,5,refrigerated,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-cooked rice,Deli & Prepared Foods,4,6,refrigerated,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
-"tomato sauce (jar), opened","Condiments, Sauces & Canned Goods",3,5,after opening,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls"
+food_name,foodkeeper_category,fridge_days_min,fridge_days_max,basis,note,source,source_record_id,required_food_classification,required_preparation_state,required_package_state
+milk,Dairy Products & Eggs,,,package use-by date,Follow the package use-by date. No numerical duration provided.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",27,REGULAR,,
+yogurt,Dairy Products & Eggs,7,14,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",33,REGULAR,,
+"cheese, hard (cheddar, swiss)",Dairy Products & Eggs,21,28,after opening,Source also provides a separate purchase-based duration not implemented here.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",3,REGULAR,,OPENED
+"eggs, in shell",Dairy Products & Eggs,21,35,from date of purchase,Applies to eggs in shell.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",21,REGULAR,RAW,
+"lettuce, leaf / spinach",Produce - Fresh Vegetables,3,7,from date of purchase,Combined FoodKeeper entry for leaf lettuce and spinach.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",291,REGULAR,,
+"lettuce, iceberg / romaine",Produce - Fresh Vegetables,7,14,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",290,REGULAR,,
+carrots,Produce - Fresh Vegetables,14,21,from date of purchase,Original source groups carrots and parsnips.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",279,REGULAR,WHOLE,
+broccoli,Produce - Fresh Vegetables,3,5,from date of purchase,Original source groups broccoli and broccoli raab.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",276,REGULAR,,
+cherry tomatoes,Produce - Fresh Vegetables,5,5,refrigerated,No explicit calculation start date provided.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",600,REGULAR,WHOLE,
+potatoes,Produce - Fresh Vegetables,7,14,from date of purchase,Refrigeration may cause darkening during cooking and an unpleasantly sweet taste.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",297,REGULAR,WHOLE,
+apples,Produce - Fresh Fruits,28,42,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",248,REGULAR,WHOLE,
+bananas,Produce - Fresh Fruits,3,3,refrigerated,Refrigeration duration applies to ripe fruit. Skin may blacken.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",251,REGULAR,WHOLE,
+"chicken parts, boneless breast",Poultry - Fresh,1,2,from date of purchase,No after-thawing duration provided for this record.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",117,REGULAR,RAW,
+tofu,Vegetarian Proteins,7,7,from date of purchase,,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",168,REGULAR,,
+cooked pasta,Deli & Prepared Foods,3,5,refrigerated,No explicit calculation start date provided.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",177,COOKED,COOKED,
+cooked rice,Deli & Prepared Foods,4,6,refrigerated,No explicit calculation start date provided.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",178,COOKED,COOKED,
+"tomato sauce (jar), opened","Condiments, Sauces & Canned Goods",3,5,after opening,Source covers spaghetti and pizza sauce. Refrigerating unopened jars does not extend shelf life.,"USDA FSIS FoodKeeper Data (EN), https://www.fsis.usda.gov/shared/data/EN/FoodKeeper-Data.xls",599,REGULAR,,OPENED

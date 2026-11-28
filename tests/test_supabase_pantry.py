@@ -64,6 +64,11 @@ def test_add_pantry_item():
         "brand": None,
         "upc": None,
         "lot_code": None,
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "opened_date": None,
+        "thawed_date": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -97,6 +102,11 @@ def test_add_pantry_item_with_dates():
         "brand": None,
         "upc": None,
         "lot_code": None,
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "opened_date": None,
+        "thawed_date": None,
     }
 
     mock_client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -137,6 +147,11 @@ def test_add_pantry_item_with_prepared_date():
         "brand": None,
         "upc": None,
         "lot_code": None,
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "opened_date": None,
+        "thawed_date": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -278,6 +293,11 @@ def test_add_pantry_item_with_storage_location():
         "brand": None,
         "upc": None,
         "lot_code": None,
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "opened_date": None,
+        "thawed_date": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -315,6 +335,11 @@ def test_add_pantry_item_with_product_metadata():
         "brand": "Test Brand",
         "upc": "012345678905",
         "lot_code": "LOT123",
+        "food_classification": None,
+        "preparation_state": None,
+        "package_state": None,
+        "opened_date": None,
+        "thawed_date": None,
     }
 
     client.table.return_value.insert.return_value.execute.return_value.data = [
@@ -336,5 +361,52 @@ def test_add_pantry_item_with_product_metadata():
 
     assert result == [expected_item]
 
+def test_add_pantry_item_with_storage_metadata():
+    """Verify that condition-specific storage metadata is saved."""
 
+    client = MagicMock()
+    client.auth.get_user.return_value.user.id = "test-user-123"
+
+    expected_item = {
+        "user_id": "test-user-123",
+        "name": "Chicken breast",
+        "quantity": 1,
+        "unit": "lb",
+        "purchase_date": "2026-11-20",
+        "expiration_date": None,
+        "storage_location": "REFRIGERATOR",
+        "prepared_date": None,
+        "brand": None,
+        "upc": None,
+        "lot_code": None,
+        "food_classification": "REGULAR",
+        "preparation_state": "RAW",
+        "package_state": "OPENED",
+        "opened_date": "2026-11-24",
+        "thawed_date": "2026-11-24",
+    }
+
+    client.table.return_value.insert.return_value.execute.return_value.data = [
+        expected_item
+    ]
+
+    result = add_pantry_item(
+        client,
+        "Chicken breast",
+        1,
+        "lb",
+        purchase_date="2026-11-20",
+        storage_location="REFRIGERATOR",
+        food_classification="REGULAR",
+        preparation_state="RAW",
+        package_state="OPENED",
+        opened_date="2026-11-24",
+        thawed_date="2026-11-24",
+    )
+
+    client.auth.get_user.assert_called_once_with()
+    client.table.assert_called_once_with("pantry_items")
+    client.table.return_value.insert.assert_called_once_with(expected_item)
+
+    assert result == [expected_item]
      
